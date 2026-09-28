@@ -1,0 +1,12 @@
+import type { Supplier } from '../../domain/entities/Supplier';
+
+export const DEMO_SUPPLIERS: Supplier[] = [
+  { id: 'sup1', code: 'PROV-001', ruc: '20123456789', name: 'Metalúrgica Andina S.A.C.', commercialName: 'Metandina', contact: 'Roberto Fuentes', phone: '+51 1 4512300', email: 'ventas@metandina.com.pe', address: 'Av. Argentina 2450, Lima', status: 'active', createdAt: '2024-03-01' },
+  { id: 'sup2', code: 'PROV-002', ruc: '20456789123', name: 'Repuestos Mineros del Perú S.R.L.', commercialName: 'RepMin Perú', contact: 'Ana Villanueva', phone: '+51 84 223344', email: 'contacto@repminperu.com', address: 'Calle Minería 180, Cusco', status: 'active', createdAt: '2024-03-15' },
+  { id: 'sup3', code: 'PROV-003', ruc: '20789012345', name: 'Industrias Ferreteras del Sur S.A.', commercialName: 'IFS', contact: 'Marco Tapia', phone: '+51 54 281900', email: 'compras@ifsur.pe', address: 'Parque Industrial S/N, Arequipa', status: 'active', createdAt: '2024-04-01' },
+  { id: 'sup4', code: 'PROV-004', ruc: '20234567890', name: 'Lubricantes Industriales Nacionales S.A.C.', commercialName: 'LIN Industrial', contact: 'Sandra Mamani', phone: '+51 1 3369900', email: 'pedidos@lin.pe', address: 'Av. Colonial 1750, Callao', status: 'active', createdAt: '2024-04-20' },
+  { id: 'sup5', code: 'PROV-005', ruc: '20567890234', name: 'Corporación Aceros Especiales E.I.R.L.', commercialName: 'AcerEsp', contact: 'Luis Paredes', phone: '+51 1 5103800', email: 'aceros@aceresperu.com', address: 'Jr. Industriales 390, Lima', status: 'active', createdAt: '2024-05-10' },
+  { id: 'sup6', code: 'PROV-006', ruc: '20890123456', name: 'Distribuidora Técnica Andina S.R.L.', commercialName: 'DistecAndina', contact: 'Carmen Flores', phone: '+51 44 291100', email: 'dist@distecandina.pe', address: 'Av. Universitaria 800, Trujillo', status: 'inactive', createdAt: '2024-02-01' },
+  { id: 'sup7', code: 'PROV-007', ruc: '20345678901', name: 'Importaciones Mecánicas Globales S.A.C.', commercialName: 'ImecGlobal', contact: 'Raúl Condori', phone: '+51 1 6120045', email: 'importaciones@imecglobal.com', address: 'Av. Benavides 3455, Miraflores, Lima', status: 'active', createdAt: '2024-06-01' },
+  { id: 'sup8', code: 'PROV-008', ruc: '20678901234', name: 'Servicios Eléctricos Mineros S.A.', commercialName: 'SEM', contact: 'Isabel Quispe', phone: '+51 76 362200', email: 'info@semsa.pe', address: 'Jr. Cajamarca 120, Cajamarca', status: 'active', createdAt: '2024-07-15' },
+];

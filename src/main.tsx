@@ -1,10 +1,20 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import React from 'react'
+import ReactDOM from 'react-dom/client'
 import './index.css'
-import App from './App.tsx'
+import { AppProvider } from './presentation/state/AppContext'
+import { CatalogProvider } from './presentation/state/CatalogContext'
+import { OperationsProvider } from './presentation/state/OperationsContext'
+import { catalogUseCases, operationsUseCases } from './app/compositionRoot'
+import App from './App'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <CatalogProvider useCases={catalogUseCases}>
+      <OperationsProvider useCases={operationsUseCases}>
+        <AppProvider>
+          <App />
+        </AppProvider>
+      </OperationsProvider>
+    </CatalogProvider>
+  </React.StrictMode>,
 )
