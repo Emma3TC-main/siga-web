@@ -1,0 +1,19 @@
+import type { AuditEvent } from '../../domain/entities/AuditEvent';
+
+export const DEMO_AUDIT: AuditEvent[] = [
+  { id: 'AUD-001', date: '2025-08-24', time: '08:32:10', userId: 'u1', action: 'LOGIN', module: 'Autenticación', object: 'Sesión', result: 'success', ip: '192.168.1.10', description: 'Inicio de sesión exitoso - Administrador' },
+  { id: 'AUD-002', date: '2025-08-24', time: '08:35:22', userId: 'u1', action: 'VIEW', module: 'Dashboard', object: 'Dashboard principal', result: 'success', ip: '192.168.1.10', description: 'Acceso al dashboard ejecutivo' },
+  { id: 'AUD-003', date: '2025-08-23', time: '16:45:30', userId: 'u3', action: 'CREATE', module: 'Inventario', object: 'Movimiento MOV-2025-0022', result: 'success', ip: '192.168.1.15', description: 'Salida confirmada: 5 vigas H 12" para OT-004-00003' },
+  { id: 'AUD-004', date: '2025-08-23', time: '14:30:15', userId: 'u2', action: 'AUTHORIZE', module: 'Autorizaciones', object: 'AUTH-005', result: 'success', ip: '192.168.1.12', description: 'Aprobación de ajuste negativo: 3 discos de corte 14"' },
+  { id: 'AUD-005', date: '2025-08-22', time: '10:15:44', userId: 'u2', action: 'REJECT', module: 'Autorizaciones', object: 'AUTH-004', result: 'warning', ip: '192.168.1.12', description: 'Rechazo de salida: Stock insuficiente plancha AR400' },
+  { id: 'AUD-006', date: '2025-08-20', time: '14:02:30', userId: 'u2', action: 'CREATE', module: 'Movimientos', object: 'MOV-2025-0035', result: 'warning', ip: '192.168.1.12', description: 'Ajuste negativo pendiente autorización: Plancha inox 316L' },
+  { id: 'AUD-007', date: '2025-08-19', time: '13:22:10', userId: 'u2', action: 'CREATE', module: 'Movimientos', object: 'MOV-2025-0022', result: 'success', ip: '192.168.1.12', description: 'Salida confirmada: 5 vigas H para construcción plataforma' },
+  { id: 'AUD-008', date: '2025-08-18', time: '10:48:22', userId: 'u3', action: 'CREATE', module: 'Movimientos', object: 'MOV-2025-0021', result: 'success', ip: '192.168.1.15', description: 'Salida confirmada: 8 galones aceite motor para grupos electrógenos' },
+  { id: 'AUD-009', date: '2025-08-17', time: '07:32:05', userId: 'u2', action: 'CREATE', module: 'Movimientos', object: 'MOV-2025-0028', result: 'success', ip: '192.168.1.12', description: 'Transferencia confirmada: Cargador Komatsu a Taller Mantenimiento' },
+  { id: 'AUD-010', date: '2025-08-16', time: '10:01:15', userId: 'u3', action: 'CREATE', module: 'Movimientos', object: 'MOV-2025-0015', result: 'warning', ip: '192.168.1.15', description: 'Salida sensible pendiente autorización: Bomba hidráulica Parker' },
+  { id: 'AUD-011', date: '2025-08-15', time: '15:02:30', userId: 'u2', action: 'CREATE', module: 'Movimientos', object: 'MOV-2025-0033', result: 'success', ip: '192.168.1.12', description: 'Ajuste negativo confirmado: Desengrasante vencido' },
+  { id: 'AUD-012', date: '2025-08-14', time: '14:12:40', userId: 'u3', action: 'CREATE', module: 'Movimientos', object: 'MOV-2025-0017', result: 'success', ip: '192.168.1.15', description: 'Salida confirmada: 50 pernos A325 para montaje estructura' },
+  { id: 'AUD-013', date: '2025-08-13', time: '17:05:10', userId: 'u2', action: 'CREATE', module: 'Movimientos', object: 'MOV-2025-0032', result: 'success', ip: '192.168.1.12', description: 'Ajuste positivo confirmado: O-rings NBR diferencia conteo' },
+  { id: 'AUD-014', date: '2025-08-01', time: '09:22:00', userId: 'u1', action: 'CREATE', module: 'Administración', object: 'Usuario u6', result: 'warning', ip: '192.168.1.10', description: 'Usuario Ana Ríos desactivado. Historial conservado.' },
+  { id: 'AUD-015', date: '2025-07-28', time: '16:00:00', userId: 'u1', action: 'EDIT', module: 'Administración', object: 'Parámetros', result: 'success', ip: '192.168.1.10', description: 'Actualización stock mínimo: Bomba hidráulica Parker V14-160' },
+];
