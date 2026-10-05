@@ -296,12 +296,28 @@ export function TableSkeleton({ rows = 5, cols = 6 }: { rows?: number; cols?: nu
 }
 
 // ─── KPI CARD ─────────────────────────────────────────────────────────────────
-export function KpiCard({ title, value, unit, icon, trend, trendLabel, variant = 'default', onClick, badge }: {
-  title: string; value: string | number; unit?: string; icon: ReactNode;
-  trend?: 'up' | 'down' | 'neutral'; trendLabel?: string;
+export function KpiCard({
+  title,
+  value,
+  unit,
+  icon,
+  trend,
+  trendLabel,
+  variant = 'default',
+  onClick,
+  badge
+}: {
+  title: string;
+  value: string | number;
+  unit?: string;
+  icon: ReactNode;
+  trend?: 'up' | 'down' | 'neutral';
+  trendLabel?: string;
   variant?: 'default' | 'warning' | 'error' | 'success' | 'info';
-  onClick?: () => void; badge?: ReactNode;
+  onClick?: () => void;
+  badge?: ReactNode;
 }) {
+
   const variantMap = {
     default: 'text-[#093C5D]',
     warning: 'text-amber-600',
@@ -309,6 +325,7 @@ export function KpiCard({ title, value, unit, icon, trend, trendLabel, variant =
     success: 'text-emerald-600',
     info: 'text-[#3B7597]',
   };
+
   const iconBg = {
     default: 'bg-[#093C5D]/10 text-[#3B7597]',
     warning: 'bg-amber-50 text-amber-600',
@@ -316,19 +333,111 @@ export function KpiCard({ title, value, unit, icon, trend, trendLabel, variant =
     success: 'bg-[#5DF8D8]/20 text-emerald-600',
     info: 'bg-[#6FD1D7]/20 text-[#3B7597]',
   };
+
+  const topBorder = {
+    default: 'bg-[#3B7597]',
+    warning: 'bg-amber-400',
+    error: 'bg-red-500',
+    success: 'bg-emerald-500',
+    info: 'bg-[#6FD1D7]',
+  };
+
   return (
-    <div className={`siga-card p-5 ${onClick ? 'cursor-pointer hover:border-[#3B7597] hover:shadow-md transition-all' : ''}`} onClick={onClick}>
-      <div className="flex items-start justify-between mb-3">
-        <div className={`p-2.5 rounded-lg ${iconBg[variant]}`}>{icon}</div>
+    <div
+      className={`
+        relative overflow-hidden bg-white
+        border border-gray-200
+        rounded-xl
+        p-5
+        shadow-sm
+        ${onClick
+          ? 'cursor-pointer hover:-translate-y-1 hover:shadow-lg hover:border-[#3B7597]/40 transition-all duration-200'
+          : ''
+        }
+      `}
+      onClick={onClick}
+    >
+
+      {/* Línea superior según estado */}
+      <div
+        className={`absolute top-0 left-0 right-0 h-1 ${topBorder[variant]}`}
+      />
+
+      {/* Icono y badge */}
+      <div className="flex items-start justify-between mb-4">
+
+        <div
+          className={`
+            w-11 h-11
+            rounded-xl
+            flex items-center justify-center
+            ${iconBg[variant]}
+          `}
+        >
+          {icon}
+        </div>
+
         {badge}
+
       </div>
-      <div className={`text-2xl font-bold font-display mb-0.5 ${variantMap[variant]}`}>{value}{unit && <span className="text-sm font-normal text-gray-400 ml-1">{unit}</span>}</div>
-      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">{title}</div>
+
+      {/* Valor principal */}
+      <div
+        className={`
+          text-2xl
+          font-bold
+          font-display
+          mb-1
+          ${variantMap[variant]}
+        `}
+      >
+        {value}
+
+        {unit && (
+          <span className="text-sm font-normal text-gray-400 ml-1">
+            {unit}
+          </span>
+        )}
+
+      </div>
+
+      {/* Título */}
+      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+        {title}
+      </div>
+
+      {/* Tendencia */}
       {trendLabel && (
-        <div className={`text-xs mt-2 flex items-center gap-1 ${trend === 'up' ? 'text-emerald-600' : trend === 'down' ? 'text-red-600' : 'text-gray-400'}`}>
-          {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'} {trendLabel}
+        <div
+          className={`
+            text-xs
+            mt-3
+            flex items-center
+            gap-1
+            font-medium
+            ${
+              trend === 'up'
+                ? 'text-emerald-600'
+                : trend === 'down'
+                ? 'text-red-600'
+                : 'text-gray-400'
+            }
+          `}
+        >
+
+          <span className="font-bold">
+            {trend === 'up'
+              ? '↑'
+              : trend === 'down'
+              ? '↓'
+              : '→'}
+          </span>
+
+          {trendLabel}
+
         </div>
       )}
+
     </div>
   );
 }
