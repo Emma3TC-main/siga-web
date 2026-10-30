@@ -113,19 +113,19 @@ return (
             <div className="min-w-0 flex-1">
 
               <div className="font-semibold text-sm text-[#093C5D] truncate">
-                {s.name}
+                {s.businessName}
               </div>
 
-              {s.commercialName && (
+              {s.tradeName && (
 
                 <div className="text-xs text-gray-400 truncate mt-0.5">
-                  {s.commercialName}
+                  {s.tradeName}
                 </div>
 
               )}
 
               <div className="text-xs text-gray-400 font-mono mt-1">
-                RUC {s.ruc} · {s.code}
+                RUC {s.taxId} · {s.code}
               </div>
 
             </div>

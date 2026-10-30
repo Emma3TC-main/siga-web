@@ -1,7 +1,7 @@
 import type { SupplierSnapshot } from './Supplier';
 
 export type MovementType = 'entrada' | 'salida' | 'transferencia' | 'ajuste_positivo' | 'ajuste_negativo' | 'conteo';
-export type MovementStatus = 'borrador' | 'pendiente_autorizacion' | 'autorizado' | 'rechazado' | 'confirmado';
+export type MovementStatus = 'borrador' | 'pendiente_autorizacion' | 'autorizado' | 'rechazado' | 'confirmado' | 'cancelado';
 
 export interface MovementLine {
   id: string;
@@ -12,6 +12,8 @@ export interface MovementLine {
   toLocationId?: string;
   batch?: string;
   serial?: string;
+  lotSource?: 'canonical' | 'demo';
+  assetSource?: 'canonical' | 'demo';
   expiryDate?: string;
   unitCost?: number;
   totalCost?: number;

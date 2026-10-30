@@ -3,10 +3,11 @@ import { useApp } from '../../../../state/AppContext';
 import { useMovements } from '../../../../hooks/useMovements';
 import { useProducts } from '../../../../hooks/useProducts';
 import { useSuppliers } from '../../../../hooks/useSuppliers';
-import { nextMovementId } from '../../../../../domain/rules/movementRules';
+import { nextMovementId, supportsMovementUnit } from '../../../../../domain/rules/movementRules';
 import { getErrorMessage } from '../../../../../shared/errors/getErrorMessage';
 import type { Movement, MovementLine } from '../../../../../domain/entities/Movement';
 import type { SupplierSnapshot } from '../../../../../domain/entities/Supplier';
+import { evidenceUseCases } from '../../../../../app/compositionRoot';
 
 export type DraftLine = {
   id: string;
@@ -16,6 +17,8 @@ export type DraftLine = {
   locationId: string;
   batch: string;
   serial: string;
+  lotSource?: 'canonical' | 'demo';
+  assetSource?: 'canonical' | 'demo';
   expiryDate: string;
   unitCost: string;
 };
@@ -53,6 +56,9 @@ export function useEntryForm() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [evidenceAdded, setEvidenceAdded] = useState(false);
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [evidenceKey, setEvidenceKey] = useState<string | null>(null);
+  const [pendingEvidenceOwnerId, setPendingEvidenceOwnerId] = useState<string | null>(null);
   const [successMov, setSuccessMov] = useState<Movement | null>(null);
   const [selectedMov, setSelectedMov] = useState<Movement | null>(null);
   const [isExternalReceipt, setIsExternalReceipt] = useState(false);
@@ -62,10 +68,10 @@ export function useEntryForm() {
   const [header, setHeader] = useState(emptyHeader());
   const [lines, setLines] = useState<DraftLine[]>([newLine()]);
 
-  const activeSuppliers = suppliers.filter(s => s.status === 'active');
+  const activeSuppliers = suppliers.filter(s => s.active);
   const filteredPickerSuppliers = useMemo(() => {
     const q = supplierSearch.toLowerCase();
-    return activeSuppliers.filter(s => !q || s.name.toLowerCase().includes(q) || s.ruc.includes(q) || s.code.toLowerCase().includes(q) || (s.commercialName ?? '').toLowerCase().includes(q));
+    return activeSuppliers.filter(s => !q || s.businessName.toLowerCase().includes(q) || s.taxId.includes(q) || s.code.toLowerCase().includes(q) || (s.tradeName ?? '').toLowerCase().includes(q));
   }, [activeSuppliers, supplierSearch]);
 
   const entries = movements.filter(movement => movement.type === 'entrada');
@@ -79,6 +85,9 @@ export function useEntryForm() {
     setHeader(emptyHeader());
     setLines([newLine()]);
     setEvidenceAdded(false);
+    setEvidenceFile(null);
+    setEvidenceKey(null);
+    setPendingEvidenceOwnerId(null);
     setIsExternalReceipt(false);
     setSupplierId('');
     setSupplierSearch('');
@@ -103,21 +112,61 @@ export function useEntryForm() {
   }
 
   function updateLine(id: string, patch: Partial<DraftLine>) {
-    setLines(prev => prev.map(line => line.id === id ? { ...line, ...patch } : line));
+    setLines(prev => prev.map(line => {
+      if (line.id !== id) return line;
+      const updated = { ...line, ...patch };
+      if (patch.batch !== undefined && patch.batch !== line.batch) {
+        updated.serial = '';
+        updated.assetSource = undefined;
+      }
+      return updated;
+    }));
   }
 
   function selectLineProduct(id: string, productId: string) {
     const selected = products.find(item => item.id === productId);
-    updateLine(id, { productId, unitId: selected?.unitId ?? '', unitCost: selected ? String(selected.avgCost) : '', batch: '', serial: '', expiryDate: '' });
+    const current = lines.find(item => item.id === id);
+    const previousUnitInvalid = Boolean(
+      selected && current?.unitId && !supportsMovementUnit(selected, current.unitId)
+    );
+    const selectedDefault = selected?.unitId && supportsMovementUnit(selected, selected.unitId)
+      ? selected.unitId
+      : '';
+    const nextUnitId = previousUnitInvalid
+      ? ''
+      : current?.unitId && selected && supportsMovementUnit(selected, current.unitId)
+        ? current.unitId
+        : selectedDefault;
+    updateLine(id, {
+      productId,
+      unitId: nextUnitId,
+      unitCost: selected ? String(selected.avgCost) : '',
+      batch: '',
+      serial: '',
+      lotSource: undefined,
+      assetSource: undefined,
+      expiryDate: '',
+    });
+    if (previousUnitInvalid) {
+      showToast('warning', 'La unidad anterior fue removida porque no es compatible con el producto seleccionado.');
+    }
   }
 
   function isLineValid(line: DraftLine) {
     const product = products.find(item => item.id === line.productId);
     if (!product || !line.locationId || !line.unitId || Number(line.quantity) <= 0) return false;
-    if (product.requiresBatch && !line.batch.trim()) return false;
-    if (product.requiresSerial && !line.serial.trim()) return false;
+    if (!supportsMovementUnit(product, line.unitId)) return false;
+
+    const lotIdRequired = product.requiresBatch || product.requiresColada || product.requiresExpiry;
+    if (lotIdRequired && !line.batch?.trim()) return false;
+    if (product.requiresSerial && (!line.serial?.trim() || Number(line.quantity) !== 1)) return false;
     if (product.requiresExpiry && !line.expiryDate) return false;
+
     return true;
+  }
+
+  function traceabilityBlockReason(line: DraftLine): string | null {
+    return null;
   }
 
   function canContinue() {
@@ -153,6 +202,8 @@ export function useEntryForm() {
         toLocationId: line.locationId,
         batch: line.batch || undefined,
         serial: line.serial || undefined,
+        lotSource: line.lotSource,
+        assetSource: line.assetSource,
         expiryDate: line.expiryDate || undefined,
         unitCost,
         totalCost: quantity * unitCost,
@@ -188,20 +239,61 @@ export function useEntryForm() {
         if (!isExternalReceipt || !supplierId) return undefined;
         const s = suppliers.find(sup => sup.id === supplierId);
         if (!s) return undefined;
-        const snap: SupplierSnapshot = { id: s.id, code: s.code, ruc: s.ruc, name: s.name };
+        const snap: SupplierSnapshot = { id: s.id, code: s.code, ruc: s.taxId, name: s.businessName };
         return snap;
       })(),
     };
   }
 
   async function handleSubmit(asDraft = false) {
+    if (pendingEvidenceOwnerId && evidenceFile && evidenceKey) {
+      setLoading(true);
+      try {
+        await evidenceUseCases.uploadMovement(pendingEvidenceOwnerId, evidenceFile, evidenceKey);
+        showToast('success', 'Evidencia cargada correctamente.');
+        setLoading(false);
+        setShowForm(false);
+        resetForm();
+      } catch (error) {
+        showToast('error', 'No se pudo cargar la evidencia. Puede reintentarlo sin duplicar el movimiento.');
+        setLoading(false);
+      }
+      return;
+    }
+    const invalidUnit = lines.some(line => {
+      const product = products.find(item => item.id === line.productId);
+      return !product || !line.unitId || !supportsMovementUnit(product, line.unitId);
+    });
+    if (invalidUnit) {
+      showToast('error', 'Selecciona una unidad compatible para cada producto antes de registrar el movimiento.');
+      return;
+    }
+    const traceabilityBlock = lines.map(traceabilityBlockReason).find(Boolean);
+    if (traceabilityBlock) {
+      showToast('error', traceabilityBlock);
+      return;
+    }
     if (!asDraft && (!lines.every(isLineValid) || !state.networkOnline)) return;
     setLoading(true);
     await new Promise(resolve => setTimeout(resolve, 550));
-    const status: Movement['status'] = asDraft ? 'borrador' : hasSensitiveLine ? 'pendiente_autorizacion' : 'confirmado';
+    const status: Movement['status'] = asDraft ? 'borrador' : 'confirmado';
     const movement = buildMovement(status);
+    let finalMovement = movement;
     try {
-      await registerMovement(movement);
+      const result = await registerMovement(movement);
+      if (result && result.outcome === 'registered') {
+        finalMovement = result.movement;
+        if (evidenceFile) {
+          try {
+            await evidenceUseCases.uploadMovement(finalMovement.id, evidenceFile, evidenceKey ?? crypto.randomUUID());
+          } catch (error) {
+            setPendingEvidenceOwnerId(finalMovement.id);
+            showToast('error', 'El movimiento se registró, pero no se pudo cargar la evidencia. Puede reintentarlo sin duplicarlo.');
+            setLoading(false);
+            return;
+          }
+        }
+      }
     } catch (error) {
       showToast('error', getErrorMessage(error));
       setLoading(false);
@@ -210,8 +302,8 @@ export function useEntryForm() {
     setLoading(false);
     setShowForm(false);
     resetForm();
-    if (asDraft) showToast('info', `Borrador ${movement.id} guardado sin afectar el stock.`);
-    else setSuccessMov(movement);
+    if (asDraft) showToast('info', `Borrador ${finalMovement.id} guardado sin afectar el stock.`);
+    else setSuccessMov(finalMovement);
   }
 
   return {
@@ -226,7 +318,9 @@ export function useEntryForm() {
     showForm, openForm, closeForm,
     step, setStep,
     loading,
-    evidenceAdded, setEvidenceAdded,
+    evidenceAdded, setEvidenceAdded, evidenceFile,
+    setEvidenceFile: (file: File | null) => { setEvidenceFile(file); setEvidenceAdded(Boolean(file)); setEvidenceKey(file ? crypto.randomUUID() : null); },
+    pendingEvidenceOwnerId,
     successMov, setSuccessMov,
     selectedMov, setSelectedMov,
     isExternalReceipt, toggleExternalReceipt,
@@ -234,7 +328,7 @@ export function useEntryForm() {
     supplierPickerOpen, setSupplierPickerOpen,
     supplierSearch, setSupplierSearch,
     header, setHeader,
-    lines, addLine, removeLine, updateLine, selectLineProduct, isLineValid,
+    lines, addLine, removeLine, updateLine, selectLineProduct, isLineValid, traceabilityBlockReason,
     canContinue,
     handleSubmit,
   };

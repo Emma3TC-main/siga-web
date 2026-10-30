@@ -1,18 +1,18 @@
 import type { Supplier, SupplierDraft } from '../../domain/entities/Supplier';
 import type { SupplierRepository } from '../../domain/repositories/SupplierRepository';
-import { NotFoundError, ValidationError } from '../../domain/errors';
+import { ValidationError } from '../../domain/errors';
 import { validateSupplierDraft } from '../../domain/rules/supplierRules';
 
 export class UpdateSupplier {
   constructor(private readonly repository: SupplierRepository) {}
 
-  async execute(id: string, draft: SupplierDraft): Promise<Supplier> {
-    const existing = await this.repository.getById(id);
-    if (!existing) throw new NotFoundError('Proveedor', id);
-
-    const errors = validateSupplierDraft(draft, await this.repository.getAll(), id);
+  async execute(current: Supplier, draft: SupplierDraft): Promise<Supplier> {
+    const errors = validateSupplierDraft(draft);
     if (Object.keys(errors).length > 0) throw new ValidationError('Datos de proveedor inválidos.', errors);
-
-    return this.repository.update({ ...existing, ...draft });
+    return this.repository.update(current.id, {
+      ...draft,
+      active: current.active,
+      expectedVersion: current.version,
+    });
   }
 }

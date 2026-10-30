@@ -16,8 +16,8 @@ export function MovementFormModal({ mode, form }: MovementFormModalProps) {
     config, networkOnline, open, closeForm, step, setStep, loading,
     header, setHeader, lines, addLine, removeLine, updateLine,
     availableStock, lineError, currentAverageCost, requiresStock, requiresEvidence, effectiveType,
-    evidenceAdded, setEvidenceAdded, totalCost, sensitive,
-    canContinue, submit,
+    evidenceAdded, evidenceFile, setEvidenceFile, totalCost, sensitive,
+    canContinue, submit, pendingEvidenceOwnerId,
   } = form;
 
   return (
@@ -49,8 +49,9 @@ export function MovementFormModal({ mode, form }: MovementFormModalProps) {
             <MovementEvidenceStep
               singular={config.singular}
               evidenceAdded={evidenceAdded}
+              file={evidenceFile}
               requiresEvidence={requiresEvidence}
-              onAddEvidence={() => setEvidenceAdded(true)}
+              onSelectFile={setEvidenceFile}
             />
           )}
           {step === 3 && (
@@ -77,7 +78,7 @@ export function MovementFormModal({ mode, form }: MovementFormModalProps) {
             <Button disabled={!canContinue()} onClick={() => setStep(previous => previous + 1)}>Siguiente →</Button>
           ) : (
             <Button variant={sensitive ? 'secondary' : 'success'} icon={<CheckIcon size={14} />} onClick={() => submit(false)} loading={loading} disabled={!networkOnline}>
-              {networkOnline ? sensitive ? 'Enviar a autorización' : `Confirmar ${config.singular}` : 'Sin conexión · guardar borrador'}
+              {networkOnline ? pendingEvidenceOwnerId ? 'Cargar evidencia y reintentar envío' : sensitive ? 'Enviar a autorización' : `Confirmar ${config.singular}` : 'Sin conexión · guardar borrador'}
             </Button>
           )}
         </div>

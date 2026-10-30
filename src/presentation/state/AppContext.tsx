@@ -1,11 +1,12 @@
 import { createContext, useContext, useReducer, useCallback, useMemo, type ReactNode } from 'react';
-import type { AppState, User, Toast } from '../../types';
+import type { AppState, Toast } from '../../types';
 import { DEFAULT_SYSTEM_CONFIG } from '../../types';
-import { hasPermission } from '../../domain/rules/permissionRules';
+import { hasUserPermission } from '../../domain/rules/permissionRules';
 import { DEMO_EVIDENCES } from '../../data/demo';
 import { useCatalog } from './CatalogContext';
 import { useOperations } from './OperationsContext';
 import { getErrorMessage } from '../../shared/errors/getErrorMessage';
+import { useAuth } from './AuthContext';
 
 /**
  * Estado que aún gestiona este reducer: sesión, navegación y avisos.
@@ -14,12 +15,11 @@ import { getErrorMessage } from '../../shared/errors/getErrorMessage';
 type CoreState = Omit<
   AppState,
   'products' | 'categories' | 'units' | 'suppliers' | 'locations' | 'costCenters' | 'responsibles'
-  | 'users' | 'stock' | 'movements' | 'authorizations' | 'alerts' | 'auditLog' | 'physicalCounts'
+  | 'users' | 'stock' | 'movements' | 'authorizations' | 'alerts' | 'unreadNotificationCount'
+  | 'notificationsLoading' | 'notificationError' | 'auditLog' | 'physicalCounts'
 >;
 
 type Action =
-  | { type: 'LOGIN'; user: User }
-  | { type: 'LOGOUT' }
   | { type: 'SET_ROUTE'; route: string }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_NETWORK'; online: boolean }
@@ -40,12 +40,6 @@ const initialState: CoreState = {
 
 function appReducer(state: CoreState, action: Action): CoreState {
   switch (action.type) {
-    case 'LOGIN':
-      return { ...state, currentUser: action.user, activeRoute: '/dashboard' };
-
-    case 'LOGOUT':
-      return { ...state, currentUser: null, activeRoute: '/login' };
-
     case 'SET_ROUTE':
       return { ...state, activeRoute: action.route };
 
@@ -68,7 +62,6 @@ function appReducer(state: CoreState, action: Action): CoreState {
 
 interface AppContextValue {
   state: AppState;
-  login: (user: User) => void;
   logout: () => void;
   navigate: (route: string) => void;
   toggleSidebar: () => void;
@@ -76,22 +69,36 @@ interface AppContextValue {
   /** Muestra un aviso; se descarta a los 4 s salvo que `autoDismiss` sea `false`. */
   showToast: (type: Toast['type'], message: string, autoDismiss?: boolean) => void;
   markAlertRead: (id: string) => void;
+  refreshNotifications: () => void;
   canAccess: (module: string, action?: string) => boolean;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [coreState, dispatch] = useReducer(appReducer, initialState);
+  const { user, logout: logoutSession } = useAuth();
+  const [coreState, dispatch] = useReducer(appReducer, {
+    ...initialState,
+    currentUser: user,
+    activeRoute: '/dashboard',
+  });
   const { products, categories, units, suppliers, locations, costCenters, responsibles } = useCatalog();
-  const { stock, movements, authorizations, alerts, auditLog, physicalCounts, users, markAlertRead: markRead } = useOperations();
+  const {
+    stock, movements, authorizations, alerts, unreadNotificationCount, notificationsLoading,
+    notificationError, auditLog, physicalCounts, operationalUsers, markAlertRead: markRead,
+    refreshNotifications: refreshNotificationState,
+  } = useOperations();
   const state = useMemo<AppState>(
-    () => ({ ...coreState, products, categories, units, suppliers, locations, costCenters, responsibles, users, stock, movements, authorizations, alerts, auditLog, physicalCounts }),
-    [coreState, products, categories, units, suppliers, locations, costCenters, responsibles, users, stock, movements, authorizations, alerts, auditLog, physicalCounts],
+    () => ({ ...coreState, products, categories, units, suppliers, locations, costCenters, responsibles, users: operationalUsers,
+      stock, movements, authorizations, alerts, unreadNotificationCount, notificationsLoading,
+      notificationError, auditLog, physicalCounts }),
+    [coreState, products, categories, units, suppliers, locations, costCenters, responsibles, operationalUsers,
+      stock, movements, authorizations, alerts, unreadNotificationCount, notificationsLoading,
+      notificationError, auditLog, physicalCounts],
   );
 
-  const login = useCallback((user: User) => dispatch({ type: 'LOGIN', user }), []);
-  const logout = useCallback(() => dispatch({ type: 'LOGOUT' }), []);
+  const logout = useCallback(() => logoutSession(), [logoutSession]);
+
   const navigate = useCallback((route: string) => dispatch({ type: 'SET_ROUTE', route }), []);
   const toggleSidebar = useCallback(() => dispatch({ type: 'TOGGLE_SIDEBAR' }), []);
   const setNetworkOnline = useCallback((online: boolean) => dispatch({ type: 'SET_NETWORK', online }), []);
@@ -108,14 +115,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [showToast]);
 
   const markAlertRead = useCallback((id: string) => reportFailure(markRead(id)), [markRead, reportFailure]);
+  const refreshNotifications = useCallback(
+    () => reportFailure(refreshNotificationState()),
+    [refreshNotificationState, reportFailure],
+  );
 
   const canAccess = useCallback(
-    (module: string, action = 'view') => hasPermission(state.currentUser?.role, module, action),
+    (module: string, action = 'view') => hasUserPermission(state.currentUser, module, action),
     [state.currentUser],
   );
 
   return (
-    <AppContext.Provider value={{ state, login, logout, navigate, toggleSidebar, setNetworkOnline, showToast, markAlertRead, canAccess }}>
+    <AppContext.Provider value={{ state, logout, navigate, toggleSidebar, setNetworkOnline, showToast,
+      markAlertRead, refreshNotifications, canAccess }}>
       {children}
     </AppContext.Provider>
   );

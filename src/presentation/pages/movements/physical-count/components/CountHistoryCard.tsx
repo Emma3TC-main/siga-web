@@ -1,25 +1,24 @@
 import type { PhysicalCount } from '../../../../../domain/entities/PhysicalCount';
 import type { Location } from '../../../../../domain/entities/Location';
-import type { User } from '../../../../../domain/entities/User';
 import { Badge } from '../../../../components/ui';
 import { calcIra } from '../utils/countStats';
 
 function statusBadge(status: string) {
-  if (status === 'completado') return <Badge variant="success" dot>Completado</Badge>;
-  if (status === 'en_progreso') return <Badge variant="warning" dot>En progreso</Badge>;
+  if (status === 'COMPLETED') return <Badge variant="success" dot>Completado</Badge>;
+  if (status === 'CANCELLED') return <Badge variant="error" dot>Cancelado</Badge>;
+  if (status === 'IN_PROGRESS') return <Badge variant="warning" dot>En progreso</Badge>;
   return <Badge variant="info" dot>Borrador</Badge>;
 }
 
-export function CountHistoryCard({ count, location, supervisor, onClick }: {
+export function CountHistoryCard({ count, location, onClick }: {
   count: PhysicalCount;
   location: Location | undefined;
-  supervisor: User | undefined;
   onClick: () => void;
 }) {
-  const countedItems = count.items.length;
-  const exactItems = count.items.filter(i => i.difference === 0).length;
-  const iraCount = calcIra(count.items);
-  const diffItems = count.items.filter(i => i.difference !== 0);
+  const countedItems = count.lines.filter(line => line.countedQuantity !== null).length;
+  const exactItems = count.lines.filter(line => line.difference === 0).length;
+  const iraCount = calcIra(count.lines);
+  const diffItems = count.lines.filter(line => line.difference !== null && line.difference !== 0);
 
   return (
     <div className="siga-card p-5 cursor-pointer hover:shadow-md transition-all" onClick={onClick}>
@@ -48,9 +47,13 @@ export function CountHistoryCard({ count, location, supervisor, onClick }: {
         </div>
       </div>
       <div className="flex justify-between text-xs text-gray-500">
-        <span>Supervisor: {supervisor?.name ?? '—'}</span>
-        <span>{count.createdAt.split(' ')[0]}</span>
+        <span title={count.createdByUserId}>Actor: {shortId(count.createdByUserId)}</span>
+        <span>{new Date(count.createdAt).toLocaleDateString('es-PE')}</span>
       </div>
     </div>
   );
+}
+
+function shortId(value: string) {
+  return value.length > 16 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
 }

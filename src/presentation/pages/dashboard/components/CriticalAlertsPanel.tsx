@@ -1,10 +1,10 @@
-import type { Alert } from '../../../../domain/entities/Alert';
+import type { Notification } from '../../../../domain/entities/Notification';
 import { CheckIcon, AlertIcon as Alert2Icon } from '../../../components/ui';
 
 export interface CriticalAlertsPanelProps {
-  criticalAlerts: readonly Alert[];
-  warningAlerts: readonly Alert[];
-  onAlertClick: (alert: Alert) => void;
+  criticalAlerts: readonly Notification[];
+  warningAlerts: readonly Notification[];
+  onAlertClick: (alert: Notification) => void;
   onViewAll: () => void;
 }
 
@@ -86,7 +86,7 @@ export function CriticalAlertsPanel({ criticalAlerts, warningAlerts, onAlertClic
             </div>
 
             <div className="text-xs text-gray-400 truncate mt-0.5">
-              {alert.description}
+              {alert.message}
             </div>
 
           </div>
@@ -124,7 +124,7 @@ export function CriticalAlertsPanel({ criticalAlerts, warningAlerts, onAlertClic
             </div>
 
             <div className="text-xs text-gray-400 truncate mt-0.5">
-              {alert.description}
+              {alert.message}
             </div>
 
           </div>

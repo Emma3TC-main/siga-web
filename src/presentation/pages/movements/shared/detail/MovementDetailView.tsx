@@ -17,6 +17,8 @@ import { MovementLinesTable } from './MovementLinesTable';
 import { MovementTimeline } from './MovementTimeline';
 import { MovementAttachments } from './MovementAttachments';
 import { MOVEMENT_TYPE_LABELS, buildHistory, buildProgress } from './movementDetailData';
+import { useMovementEvidences } from '../../../../hooks/useMovementEvidences';
+import { evidenceUseCases } from '../../../../../app/compositionRoot';
 
 type DetailTab = 'resumen' | 'lineas' | 'auditoria' | 'adjuntos';
 
@@ -25,7 +27,7 @@ type DetailTab = 'resumen' | 'lineas' | 'auditoria' | 'adjuntos';
  * (movimiento, autorización, auditoría, evidencias); no ejecuta ninguna operación.
  */
 export function MovementDetailView({ movement }: { movement: Movement }) {
-  const { state } = useApp();
+  const { showToast } = useApp();
   const { users } = useUsers();
   const { products } = useProducts();
   const { locations } = useLocations();
@@ -36,6 +38,7 @@ export function MovementDetailView({ movement }: { movement: Movement }) {
   const { authorizations } = useAuthorizations();
   const { auditLog } = useAuditLog();
   const [tab, setTab] = useState<DetailTab>('resumen');
+  const { evidences, loading: evidencesLoading, error: evidencesError } = useMovementEvidences(movement.id);
 
   const userName = (id?: string) => {
     const user = users.find(item => item.id === id);
@@ -52,13 +55,24 @@ export function MovementDetailView({ movement }: { movement: Movement }) {
 
   const auditEvents = auditLog.filter(event => event.object.includes(movement.id) || (authorization && event.object.includes(authorization.id)));
 
-  const evidences = state.evidences.filter(item => item.movementId === movement.id || movement.evidenceIds?.includes(item.id));
-  const unlinkedCount = (movement.evidenceIds ?? []).filter(id => !state.evidences.some(item => item.id === id)).length;
+  const downloadEvidence = async (id: string) => {
+    try {
+      const { blob, filename } = await evidenceUseCases.download(id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      showToast('error', 'No se pudo descargar la evidencia.');
+    }
+  };
 
   const snapshot = movement.supplierSnapshot;
   const liveSupplier = movement.supplierId ? suppliers.find(item => item.id === movement.supplierId) : undefined;
   const supplier = movement.isExternalReceipt || movement.supplierId || snapshot
-    ? { name: snapshot?.name ?? liveSupplier?.name ?? '—', code: snapshot?.code ?? liveSupplier?.code ?? '—', ruc: snapshot?.ruc ?? liveSupplier?.ruc ?? '—' }
+    ? { name: snapshot?.name ?? liveSupplier?.businessName ?? '—', code: snapshot?.code ?? liveSupplier?.code ?? '—', ruc: snapshot?.ruc ?? liveSupplier?.taxId ?? '—' }
     : null;
 
   const costCenter = costCenters.find(item => item.id === movement.costCenterId);
@@ -92,7 +106,7 @@ export function MovementDetailView({ movement }: { movement: Movement }) {
           { id: 'resumen', label: 'Información' },
           { id: 'lineas', label: 'Líneas', count: lines.length },
           { id: 'auditoria', label: 'Auditoría', count: auditEvents.length },
-          { id: 'adjuntos', label: 'Adjuntos', count: evidences.length + unlinkedCount },
+          { id: 'adjuntos', label: 'Adjuntos', count: evidences.length },
         ]}
       />
 
@@ -109,7 +123,7 @@ export function MovementDetailView({ movement }: { movement: Movement }) {
       )}
       {tab === 'lineas' && <MovementLinesTable lines={lines} products={products} locations={locations} units={units} />}
       {tab === 'auditoria' && <MovementTimeline progress={progress} history={history} auditEvents={auditEvents} userName={userName} />}
-      {tab === 'adjuntos' && <MovementAttachments evidences={evidences} unlinkedCount={unlinkedCount} userName={userName} />}
+      {tab === 'adjuntos' && <MovementAttachments evidences={evidences} loading={evidencesLoading} error={evidencesError} onDownload={downloadEvidence} />}
     </div>
   );
 }

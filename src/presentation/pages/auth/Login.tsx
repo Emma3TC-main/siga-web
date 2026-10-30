@@ -1,23 +1,16 @@
 import { useState } from 'react';
-import { useApp } from '../../state/AppContext';
-import { useUsers } from '../../hooks/useUsers';
-import { Button, Input, Spinner } from '../../components/ui';
+import { useAuth } from '../../state/AuthContext';
+import { Button, Input } from '../../components/ui';
 import { EyeIcon } from '../../components/ui';
 import industrialBg from '../../../assets/industrial.jpg';
-
-// Cuentas demo para pruebas del sistema. No se exponen en la interfaz de Login:
-// el usuario debe ingresar sus credenciales manualmente.
-const DEMO_ACCOUNTS = [
-  { email: 'admin@siga.demo', password: 'admin123', label: 'Administrador', role: 'admin' },
-  { email: 'supervisor@siga.demo', password: 'sup123', label: 'Supervisor de Almacén', role: 'supervisor' },
-  { email: 'almacen@siga.demo', password: 'alm123', label: 'Encargado de Almacén', role: 'warehouse' },
-];
+import { ApiError } from '../../../infrastructure/http/ApiClient';
+import { getErrorMessage } from '../../../shared/errors/getErrorMessage';
 
 export default function Login() {
-  const { login, showToast } = useApp();
-  const { users } = useUsers();
+  const { phase, enrollment, loginWithPassword, enrollMfa, verifyMfa, resetLogin } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,14 +19,117 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    const account = DEMO_ACCOUNTS.find(item => item.email === email && item.password === password);
-    const user = account ? users.find(item => item.email === account.email) : undefined;
-    if (!user) { setError(`401 UNAUTHORIZED · Credenciales incorrectas · correlationId SIGA-LOGIN-${Date.now().toString(36).toUpperCase()}`); setLoading(false); return; }
-    if (user.status === 'inactive') { setError(`403 FORBIDDEN · Usuario desactivado · correlationId SIGA-USER-${user.id}`); setLoading(false); return; }
-    login(user);
-    showToast('success', `Bienvenido al sistema, ${user.name} ${user.lastName}`);
-    setLoading(false);
+    try {
+      await loginWithPassword(email, password);
+      setPassword('');
+    } catch (cause: unknown) {
+      setError(cause instanceof ApiError && cause.status === 401
+        ? 'Usuario o contraseña incorrectos.'
+        : cause instanceof ApiError && cause.status === 429
+          ? 'Demasiados intentos. Espera antes de volver a intentarlo.'
+          : getErrorMessage(cause));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleEnrollment() {
+    setError('');
+    setLoading(true);
+    try {
+      await enrollMfa();
+    } catch (cause: unknown) {
+      if (cause instanceof ApiError && cause.status === 409) {
+        setError('MFA ya está configurado. Ingresa el código de tu autenticador.');
+      } else if (cause instanceof ApiError && (cause.status === 401 || cause.status === 429)) {
+        setError('El desafío MFA venció o dejó de ser válido. Inicia sesión nuevamente.');
+      } else {
+        setError(getErrorMessage(cause));
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleOtp(e: React.FormEvent) {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(otp)) {
+      setError('Ingresa exactamente 6 dígitos.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      await verifyMfa(otp);
+      setOtp('');
+    } catch (cause: unknown) {
+      setOtp('');
+      setError(cause instanceof ApiError && cause.status === 429
+        ? 'Se agotaron los intentos MFA. Inicia sesión para obtener un desafío nuevo.'
+        : cause instanceof ApiError && cause.status === 401
+          ? 'Código inválido o desafío vencido. Inicia sesión nuevamente.'
+          : getErrorMessage(cause));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (phase === 'MFA_CHALLENGE' || phase === 'MFA_ENROLLMENT') {
+    return (
+      <div className="min-h-full bg-[#093C5D] flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+          <div className="h-2 bg-[#6FD1D7]" />
+          <div className="p-8">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#3B7597] mb-2">Verificación en dos pasos</p>
+            <h1 className="text-2xl font-bold text-[#093C5D]">Código de autenticación</h1>
+            <p className="text-sm text-gray-500 mt-2">
+              Ingresa el código de 6 dígitos generado por tu aplicación autenticadora.
+            </p>
+
+            {phase === 'MFA_ENROLLMENT' && enrollment && (
+              <div className="mt-5 rounded-lg border border-[#6FD1D7]/60 bg-[#6FD1D7]/10 p-4 space-y-3">
+                <p className="text-sm font-semibold text-[#093C5D]">Configura tu autenticador</p>
+                <p className="text-xs text-gray-600">Abre este URI con tu aplicación TOTP:</p>
+                <code className="block break-all rounded bg-white p-2 text-xs text-[#093C5D]">{enrollment.otpauthUri}</code>
+                <p className="text-xs text-gray-600">Si no puedes abrirlo, usa esta clave manual:</p>
+                <code className="block break-all rounded bg-white p-2 text-sm font-semibold tracking-wide text-[#093C5D]">{enrollment.secret}</code>
+              </div>
+            )}
+
+            {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+            <form onSubmit={handleOtp} className="mt-5 space-y-4">
+              <Input
+                label="Código de 6 dígitos"
+                value={otp}
+                onChange={event => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="000000"
+                required
+              />
+              <Button type="submit" className="w-full" loading={loading} disabled={otp.length !== 6}>
+                Verificar y continuar
+              </Button>
+            </form>
+
+            {phase === 'MFA_CHALLENGE' && (
+              <Button type="button" variant="outline" className="w-full mt-3" onClick={handleEnrollment} disabled={loading}>
+                Configurar MFA
+              </Button>
+            )}
+            <button
+              type="button"
+              className="w-full mt-5 text-xs text-[#3B7597] hover:underline"
+              onClick={() => { setError(''); setOtp(''); resetLogin(); }}
+            >
+              Volver al inicio de sesión
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
 return (
@@ -214,11 +310,11 @@ return (
               <form onSubmit={handleLogin} className="space-y-5">
 
                 <Input
-                  label="Correo electrónico"
-                  type="email"
+                  label="Usuario o correo electrónico"
+                  type="text"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="usuario@empresa.com"
+                  placeholder="usuario o correo"
                   required
                 />
 

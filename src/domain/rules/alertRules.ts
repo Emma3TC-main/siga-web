@@ -1,8 +1,8 @@
-import type { Alert } from '../entities/Alert';
+import type { Notification } from '../entities/Notification';
 
-export function splitAlertsByRead(alerts: readonly Alert[]): { unread: Alert[]; read: Alert[] } {
+export function splitAlertsByRead(alerts: readonly Notification[]): { unread: Notification[]; read: Notification[] } {
   return {
-    unread: alerts.filter(alert => !alert.read),
-    read: alerts.filter(alert => alert.read),
+    unread: alerts.filter(alert => alert.readAt === null),
+    read: alerts.filter(alert => alert.readAt !== null),
   };
 }

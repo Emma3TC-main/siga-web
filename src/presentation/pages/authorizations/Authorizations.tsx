@@ -8,19 +8,27 @@ import { useUsers } from '../../hooks/useUsers';
 import { useUnits } from '../../hooks/useUnits';
 import { getBreadcrumbs } from '../../navigation/routeRegistry';
 import { PageHeader, Tabs, EmptyState, ShieldIcon } from '../../components/ui';
-import { hasPermission } from '../../../domain/rules/permissionRules';
+import { hasUserPermission } from '../../../domain/rules/permissionRules';
 import { countAuthorizationsByStatus, filterAuthorizationsByStatus } from '../../../domain/rules/authorizationRules';
 import { resolveAuthorization } from './utils/resolveAuthorization';
 import { AuthorizationCard } from './components/AuthorizationCard';
 import { AuthorizationDetailModal } from './components/AuthorizationDetailModal';
 import { RejectAuthorizationModal } from './components/RejectAuthorizationModal';
-import { MfaConfirmModal } from './components/MfaConfirmModal';
+import { getErrorMessage } from '../../../shared/errors/getErrorMessage';
+import { ApiError } from '../../../infrastructure/http/ApiClient';
+
+function authorizationError(error: unknown): string {
+  if (error instanceof ApiError && error.status === 403) {
+    return 'La autorización requiere una sesión con OTP reciente. Vuelva a autenticarse e inténtelo otra vez.';
+  }
+  return getErrorMessage(error);
+}
 
 export default function Authorizations() {
   const { state, navigate, showToast } = useApp();
   const { responsibles, currentUser, costCenters } = state;
   const { users } = useUsers();
-  const { authorizations, resolveAuthorization: resolveRequest, verifyMfaCode } = useAuthorizations();
+  const { authorizations, resolveAuthorization: resolveRequest } = useAuthorizations();
   const { movements, confirmMovement } = useMovements();
   const { products } = useProducts();
   const { locations } = useLocations();
@@ -31,11 +39,8 @@ export default function Authorizations() {
   const [rejectReason, setRejectReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [rejectModal, setRejectModal] = useState(false);
-  const [mfaModal, setMfaModal] = useState(false);
-  const [totp, setTotp] = useState('');
-  const [totpError, setTotpError] = useState('');
 
-  const canAuthorize = hasPermission(currentUser?.role, 'authorizations', 'authorize');
+  const canAuthorize = hasUserPermission(currentUser, 'authorizations', 'authorize');
 
   const filtered = filterAuthorizationsByStatus(authorizations, tab);
   const counts = countAuthorizationsByStatus(authorizations);
@@ -43,40 +48,48 @@ export default function Authorizations() {
 
   async function handleApprove(authId: string) {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 700));
-    await resolveRequest(authId, true, currentUser?.id ?? 'u1');
-    showToast('success', 'Movimiento autorizado. Aún no afecta stock: falta confirmarlo con MFA.');
-    setSelectedAuth(null);
-    setLoading(false);
+    try {
+      await new Promise(r => setTimeout(r, 700));
+      await resolveRequest(authId, true, currentUser?.id ?? 'u1');
+      showToast('success', 'Movimiento autorizado. Aún no afecta stock: falta confirmarlo con MFA.');
+      setSelectedAuth(null);
+    } catch (error) {
+      showToast('error', authorizationError(error));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleReject() {
     if (!rejectReason.trim() || !selectedAuth) return;
     setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-    await resolveRequest(selectedAuth, false, currentUser?.id ?? 'u1', rejectReason);
-    showToast('warning', 'Solicitud rechazada. El inventario no fue modificado.');
-    setRejectModal(false);
-    setSelectedAuth(null);
-    setRejectReason('');
-    setLoading(false);
+    try {
+      await new Promise(r => setTimeout(r, 600));
+      await resolveRequest(selectedAuth, false, currentUser?.id ?? 'u1', rejectReason);
+      showToast('warning', 'Solicitud rechazada. El inventario no fue modificado.');
+      setRejectModal(false);
+      setSelectedAuth(null);
+      setRejectReason('');
+    } catch (error) {
+      showToast('error', authorizationError(error));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  async function handleMfaConfirm() {
-    const auth = authorizations.find(item => item.id === selectedAuth);
+  async function handleConfirm(authId: string) {
+    const auth = authorizations.find(item => item.id === authId);
     if (!auth) return;
-    if (!(await verifyMfaCode(totp))) {
-      setTotpError('Código inválido o vencido. Para esta demostración use 123456.');
-      return;
-    }
     setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 600));
-    await confirmMovement(auth.movementId, currentUser?.id ?? 'u1');
-    setLoading(false);
-    setMfaModal(false);
-    setSelectedAuth(null);
-    setTotp('');
-    setTotpError('');
+    try {
+      await confirmMovement(auth.movementId, currentUser?.id ?? 'u1');
+      showToast('success', 'Movimiento confirmado.');
+    } catch (error) {
+      showToast('error', getErrorMessage(error));
+    } finally {
+      setLoading(false);
+      setSelectedAuth(null);
+    }
   }
 
   // Datos completos para el modal de detalle (solo consulta; no altera el flujo de autorización).
@@ -116,13 +129,13 @@ export default function Authorizations() {
             <AuthorizationCard
               key={auth.id}
               resolved={resolveAuthorization(auth, lookupSources)}
-              canAuthorize={canAuthorize}
+              canAuthorize={canAuthorize && auth.registeredBy !== currentUser?.id}
               loading={loading}
               onOpen={setSelectedAuth}
               onView={setViewAuthId}
               onApprove={handleApprove}
               onReject={id => { setSelectedAuth(id); setRejectModal(true); }}
-              onConfirmMfa={id => { setSelectedAuth(id); setMfaModal(true); }}
+              onConfirm={handleConfirm}
             />
           ))}
         </div>
@@ -134,16 +147,6 @@ export default function Authorizations() {
         reason={rejectReason}
         onReasonChange={setRejectReason}
         onConfirm={handleReject}
-        loading={loading}
-      />
-
-      <MfaConfirmModal
-        open={mfaModal}
-        onClose={() => { setMfaModal(false); setTotp(''); setTotpError(''); }}
-        totp={totp}
-        totpError={totpError}
-        onTotpChange={value => { setTotp(value); setTotpError(''); }}
-        onConfirm={handleMfaConfirm}
         loading={loading}
       />
 

@@ -5,13 +5,14 @@ import { EntryLineItemCard } from './EntryLineItemCard';
 export interface EntryLineItemsStepProps {
   lines: DraftLine[];
   isLineValid: (line: DraftLine) => boolean;
+  traceabilityBlockReason: (line: DraftLine) => string | null;
   onAddLine: () => void;
   onRemoveLine: (id: string) => void;
   onSelectProduct: (id: string, productId: string) => void;
   onUpdateLine: (id: string, patch: Partial<DraftLine>) => void;
 }
 
-export function EntryLineItemsStep({ lines, isLineValid, onAddLine, onRemoveLine, onSelectProduct, onUpdateLine }: EntryLineItemsStepProps) {
+export function EntryLineItemsStep({ lines, isLineValid, traceabilityBlockReason, onAddLine, onRemoveLine, onSelectProduct, onUpdateLine }: EntryLineItemsStepProps) {
   const allValid = lines.every(isLineValid);
 
 return (
@@ -51,6 +52,7 @@ return (
           line={line}
           index={index}
           isValid={isLineValid(line)}
+          traceabilityBlockReason={traceabilityBlockReason(line)}
           canRemove={lines.length > 1}
           onRemove={() => onRemoveLine(line.id)}
           onSelectProduct={productId =>

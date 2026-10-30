@@ -37,7 +37,7 @@ export function ValuationReportView({ inventoryData, totalValuation }: Valuation
               <td className="font-mono text-xs text-[#3B7597]">{r.sku}</td>
               <td className="font-medium text-sm max-w-[220px] truncate">{r.name}</td>
               <td className="text-right tabular-nums">{formatNumber(r.qty)}</td>
-              <td className="text-right font-mono text-xs tabular-nums">{formatCurrency(r.avgCost)}</td>
+              <td className="text-right font-mono text-xs tabular-nums">{formatCurrency(r.avgCost ?? 0)}</td>
               <td className="text-right font-bold text-[#093C5D] tabular-nums">{formatCurrency(r.valuation)}</td>
               <td className="text-right text-xs text-gray-500 tabular-nums">{totalValuation > 0 ? ((r.valuation / totalValuation) * 100).toFixed(1) : 0}%</td>
             </tr>

@@ -1,13 +1,15 @@
 import type { PhysicalCount } from '../../../../../domain/entities/PhysicalCount';
 import type { Location } from '../../../../../domain/entities/Location';
-import type { User } from '../../../../../domain/entities/User';
 import { Button, EmptyState, PackageIcon } from '../../../../components/ui';
 import { CountHistoryCard } from './CountHistoryCard';
 
-export function PhysicalCountHistory({ physicalCounts, locations, users, onSelect, onNew }: {
+export function PhysicalCountHistory({ physicalCounts, locations, page, size, totalElements, onPageChange, onSelect, onNew }: {
   physicalCounts: PhysicalCount[];
   locations: Location[];
-  users: User[];
+  page: number;
+  size: number;
+  totalElements: number;
+  onPageChange: (page: number) => void;
   onSelect: (id: string) => void;
   onNew: () => void;
 }) {
@@ -24,11 +26,19 @@ export function PhysicalCountHistory({ physicalCounts, locations, users, onSelec
             key={count.id}
             count={count}
             location={locations.find(l => l.id === count.locationId)}
-            supervisor={users.find(u => u.id === count.createdBy)}
             onClick={() => onSelect(count.id)}
           />
         ))}
       </div>
+      {totalElements > size && (
+        <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
+          <span>Página {page + 1} · {totalElements} conteos</span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => onPageChange(page - 1)}>Anterior</Button>
+            <Button variant="outline" size="sm" disabled={(page + 1) * size >= totalElements} onClick={() => onPageChange(page + 1)}>Siguiente</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

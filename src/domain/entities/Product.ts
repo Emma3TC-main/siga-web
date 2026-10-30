@@ -1,32 +1,50 @@
-export type ProductType = 'material' | 'insumo' | 'repuesto' | 'maquinaria';
+export type ProductType = 'MATERIAL' | 'INSUMO' | 'REPUESTO' | 'MAQUINARIA';
 export type ProductStatus = 'normal' | 'bajo_stock' | 'sin_stock' | 'proximo_vencer' | 'vencido' | 'cuarentena';
 export type MachineryStatus = 'operativo' | 'mantenimiento' | 'inoperativo' | 'transito' | 'fuera_servicio';
 export type DispatchStrategy = 'FIFO' | 'FEFO' | 'manual';
 
+export interface ProductUnitConversion {
+  fromUnitId: string;
+  toUnitId: string;
+  factor: number;
+  active: boolean;
+}
+
+export type ProductTechnicalAttributes = Record<string, unknown>;
+
+/** Modelo canónico de Catalog. Los campos requeridos reflejan ProductResponse. */
 export interface Product {
   id: string;
   sku: string;
   name: string;
-  description?: string;
   categoryId: string;
-  type: ProductType;
-  status: 'active' | 'inactive';
-  unitId: string;
-  baseUnitId?: string;
-  conversionFactor?: number;
+  productType: ProductType;
+  storageUnitId: string;
+  baseUnitId: string;
   minStock: number;
-  reorderPoint?: number;
-  technicalInfo?: string;
-  requiresBatch: boolean;
-  requiresColada: boolean;
+  requiresLot: boolean;
+  requiresHeatNumber: boolean;
   requiresExpiry: boolean;
   requiresSerial: boolean;
-  dispatchStrategy: DispatchStrategy;
-  avgCost: number;
-  sensitiveMovement: boolean;
+  technicalAttributes: ProductTechnicalAttributes;
+  conversions: ProductUnitConversion[];
+  active: boolean;
+  version: number;
+
+  /** Metadatos exclusivos del repositorio DEMO; el adapter REMOTE nunca los fabrica. */
+  type?: 'material' | 'insumo' | 'repuesto' | 'maquinaria';
+  status?: 'active' | 'inactive';
+  unitId?: string;
+  requiresBatch?: boolean;
+  requiresColada?: boolean;
+  technicalInfo?: string;
+  description?: string;
+  reorderPoint?: number;
+  dispatchStrategy?: DispatchStrategy;
+  avgCost?: number;
+  sensitiveMovement?: boolean;
   observations?: string;
   image?: string;
-  // machinery specific
   vin?: string;
   assetCode?: string;
   brand?: string;
@@ -35,8 +53,33 @@ export interface Product {
   machineryStatus?: MachineryStatus;
 }
 
-/** Datos que aporta quien crea un producto. `id` lo asigna la fuente de datos. */
-export type NewProduct = Omit<Product, 'id'>;
+export type CreateProductCommand = Pick<
+  Product,
+  | 'sku' | 'name' | 'categoryId' | 'productType' | 'storageUnitId' | 'baseUnitId' | 'minStock'
+  | 'requiresLot' | 'requiresHeatNumber' | 'requiresExpiry' | 'requiresSerial'
+  | 'technicalAttributes' | 'conversions'
+>;
 
-/** Campos editables de un producto existente. */
-export type ProductChanges = Partial<Omit<Product, 'id'>>;
+export interface UpdateProductCommand extends CreateProductCommand {
+  active: boolean;
+  expectedVersion: number;
+}
+
+export type ProductSort = 'sku,asc' | 'sku,desc' | 'name,asc' | 'name,desc';
+
+export interface ProductListQuery {
+  page: number;
+  size: number;
+  sort: ProductSort;
+  q?: string;
+  active?: boolean;
+  categoryId?: string;
+  productType?: ProductType;
+}
+
+export interface ProductPage {
+  content: Product[];
+  page: number;
+  size: number;
+  totalElements: number;
+}

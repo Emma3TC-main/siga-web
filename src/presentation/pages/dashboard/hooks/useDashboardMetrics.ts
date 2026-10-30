@@ -25,7 +25,7 @@ export function useDashboardMetrics() {
 
   const totalStock = products.map(p => {
     const qty = stock.filter(s => s.productId === p.id).reduce((sum, s) => sum + s.quantity, 0);
-    return qty * p.avgCost;
+    return qty * (p.avgCost ?? 0);
   }).reduce((sum, v) => sum + v, 0);
 
   const machinery = getMachinery(products);
@@ -53,8 +53,8 @@ export function useDashboardMetrics() {
     ...mv,
     productName: products.find(p => p.id === mv.productId)?.name,
   }));
-  const criticalAlerts = alerts.filter(a => !a.read && a.severity === 'critical').slice(0, 5);
-  const warningAlerts = alerts.filter(a => !a.read && a.severity === 'warning').slice(0, 3);
+  const criticalAlerts = alerts.filter(a => a.readAt === null && a.severity === 'CRITICAL').slice(0, 5);
+  const warningAlerts = alerts.filter(a => a.readAt === null && a.severity === 'WARNING').slice(0, 3);
 
   return {
     currentUser,

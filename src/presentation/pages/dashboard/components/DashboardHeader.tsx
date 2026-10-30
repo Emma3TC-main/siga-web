@@ -1,3 +1,6 @@
+import type { DashboardRange } from '../../reports/reportingDates';
+import { formatDataUpdatedAt } from '../../reports/reportingDates';
+
 const ROLE_LABEL: Record<string, string> = {
   admin: 'Administrador',
   supervisor: 'Supervisor de Almacén',
@@ -5,42 +8,38 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return 'Buenos días';
-  if (h < 18) return 'Buenas tardes';
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Buenos días';
+  if (hour < 18) return 'Buenas tardes';
   return 'Buenas noches';
 }
 
-export interface DashboardHeaderProps {
+export function DashboardHeader({
+  userName,
+  role,
+  range,
+  onRangeChange,
+  dataUpdatedAt,
+}: {
   userName?: string;
   role?: string;
-  period: string;
-  onPeriodChange: (period: string) => void;
-}
-
-export function DashboardHeader({ userName, role, period, onPeriodChange }: DashboardHeaderProps) {
+  range: DashboardRange;
+  onRangeChange: (range: DashboardRange) => void;
+  dataUpdatedAt: string | null;
+}) {
   return (
-    <div className="flex items-start justify-between">
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
       <div>
-        <h1 className="text-xl font-bold text-[#093C5D] font-display">
-          {greeting()}, {userName}
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {ROLE_LABEL[role ?? '']} · Resumen operativo del almacén
-        </p>
+        <h1 className="text-xl font-bold text-[#093C5D] font-display">{greeting()}, {userName}</h1>
+        <p className="text-sm text-gray-500 mt-0.5">{ROLE_LABEL[role ?? '']} · Resumen operativo del almacén</p>
+        <p className="text-xs text-gray-400 mt-1">{formatDataUpdatedAt(dataUpdatedAt)}</p>
       </div>
-      <div className="flex items-center gap-2">
-        <select value={period} onChange={e => onPeriodChange(e.target.value)} className="siga-select w-auto text-sm">
-          <option value="agosto">Agosto 2025</option>
-          <option value="julio">Julio 2025</option>
-          <option value="junio">Junio 2025</option>
-        </select>
-        <select className="siga-select w-auto text-sm">
-          <option>Todos los almacenes</option>
-          <option>Almacén Principal</option>
-          <option>Almacén Secundario</option>
-        </select>
-      </div>
+      <select value={range} onChange={event => onRangeChange(event.target.value as DashboardRange)} className="siga-select w-auto text-sm">
+        <option value="LAST_7_DAYS">Últimos 7 días</option>
+        <option value="LAST_30_DAYS">Últimos 30 días</option>
+        <option value="CURRENT_MONTH">Mes actual</option>
+        <option value="LAST_6_MONTHS">Últimos 6 meses</option>
+      </select>
     </div>
   );
 }

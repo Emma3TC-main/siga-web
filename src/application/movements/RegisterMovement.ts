@@ -17,7 +17,7 @@ export interface RegisterMovementInput {
 }
 
 export type RegisterMovementResult =
-  | { outcome: 'registered' }
+  | { outcome: 'registered'; movement: Movement }
   /** Sin conexión, la operación no se registró. */
   | { outcome: 'offline' }
   /** El stock disponible no alcanza: no se registró ni cambió el stock (409). */
@@ -28,7 +28,7 @@ export class RegisterMovement {
     private readonly movements: MovementRepository,
     private readonly stock: StockRepository,
     private readonly authorizations: AuthorizationRepository,
-    private readonly alerts: AlertRepository,
+    private readonly alerts: AlertRepository | null,
     private readonly audit: AuditRepository,
     private readonly products: ProductRepository,
     private readonly clock: () => Date = () => new Date(),
@@ -37,37 +37,50 @@ export class RegisterMovement {
   async execute({ movement, online }: RegisterMovementInput): Promise<RegisterMovementResult> {
     if (!online && movement.status !== 'borrador') return { outcome: 'offline' };
 
-    let stock = await this.stock.getAll();
-    if (movement.status === 'confirmado') {
-      const applied = applyConfirmedMovement(stock, movement);
-      if (applied.conflict) return { outcome: 'conflict', message: applied.conflict };
-      stock = applied.stock;
-      await this.stock.save(stock);
+    const authoritative = this.movements.isAuthoritative;
+
+    if (!authoritative) {
+      if (!this.alerts) throw new Error('Demo alert persistence is not configured');
+      const alerts = this.alerts;
+      let stock = await this.stock.getAll();
+      if (movement.status === 'confirmado') {
+        const applied = applyConfirmedMovement(stock, movement);
+        if (applied.conflict) return { outcome: 'conflict', message: applied.conflict };
+        stock = applied.stock;
+        await this.stock.save(stock);
+      }
+
+      const now = this.clock();
+      if (movement.isSensitive && movement.status === 'pendiente_autorizacion') {
+        const authorization = buildAuthorizationFor(movement, now);
+        await this.authorizations.add(authorization);
+        await alerts.add(buildPendingAuthorizationAlert(movement, authorization, now));
+      }
+
+      const product = await this.products.getById(movement.productId);
+      if (product && sumQuantity(stockEntriesOfProduct(stock, movement.productId)) === 0) {
+        const alreadyAlerted = (await alerts.getAll()).some(alert => alert.productId === movement.productId && alert.type === 'sin_stock');
+        if (!alreadyAlerted) await alerts.add(buildOutOfStockAlert(product, now));
+      }
     }
 
-    const now = this.clock();
-    if (movement.isSensitive && movement.status === 'pendiente_autorizacion') {
-      const authorization = buildAuthorizationFor(movement, now);
-      await this.authorizations.add(authorization);
-      await this.alerts.add(buildPendingAuthorizationAlert(movement, authorization, now));
+    const savedMovement = await this.movements.add(movement);
+    if (!authoritative) {
+      const confirmed = savedMovement.status === 'confirmado';
+      await this.audit.add({
+        userId: savedMovement.registeredBy,
+        action: 'CREATE',
+        module: 'Movimientos',
+        object: `Movimiento ${savedMovement.id}`,
+        result: confirmed ? 'success' : 'warning',
+        description: `${savedMovement.type} ${confirmed ? 'confirmado' : 'pendiente'}: ${savedMovement.quantity} uds de producto ${savedMovement.productId}`,
+      });
     }
 
-    const product = await this.products.getById(movement.productId);
-    if (product && sumQuantity(stockEntriesOfProduct(stock, movement.productId)) === 0) {
-      const alreadyAlerted = (await this.alerts.getAll()).some(alert => alert.productId === movement.productId && alert.type === 'sin_stock');
-      if (!alreadyAlerted) await this.alerts.add(buildOutOfStockAlert(product, now));
-    }
+    return { outcome: 'registered', movement: savedMovement };
+  }
 
-    await this.movements.add(movement);
-    const confirmed = movement.status === 'confirmado';
-    await this.audit.add({
-      userId: movement.registeredBy,
-      action: 'CREATE',
-      module: 'Movimientos',
-      object: `Movimiento ${movement.id}`,
-      result: confirmed ? 'success' : 'warning',
-      description: `${movement.type} ${confirmed ? 'confirmado' : 'pendiente'}: ${movement.quantity} uds de producto ${movement.productId}`,
-    });
-    return { outcome: 'registered' };
+  submitExisting(movementId: string): Promise<Movement> {
+    return this.movements.submit(movementId);
   }
 }

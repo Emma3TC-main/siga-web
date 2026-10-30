@@ -31,15 +31,15 @@ export function computeAnalyticsKpis(
   const operative = machinery.filter(machine => machine.machineryStatus === 'operativo').length;
 
   const totalValue = products
-    .map(product => sumQuantity(stockEntriesOfProduct(stock, product.id)) * product.avgCost)
+    .map(product => sumQuantity(stockEntriesOfProduct(stock, product.id)) * (product.avgCost ?? 0))
     .reduce((sum, value) => sum + value, 0);
   const consumed = movements
     .filter(movement => movement.type === 'salida' && movement.status === 'confirmado')
     .reduce((sum, movement) => sum + (movement.totalCost ?? 0), 0);
   const rotation = totalValue > 0 ? Math.round((consumed / totalValue) * 100) / 100 : 0;
 
-  const countedItems = physicalCounts.reduce((sum, count) => sum + count.items.length, 0);
-  const exactItems = physicalCounts.reduce((sum, count) => sum + count.items.filter(item => item.difference === 0).length, 0);
+  const countedItems = physicalCounts.reduce((sum, count) => sum + count.lines.filter(item => item.countedQuantity !== null).length, 0);
+  const exactItems = physicalCounts.reduce((sum, count) => sum + count.lines.filter(item => item.difference === 0).length, 0);
   const ira = countedItems > 0 ? Math.round((exactItems / countedItems) * 1000) / 10 : 0;
 
   const adjustments = movements.filter(movement => (movement.type === 'ajuste_positivo' || movement.type === 'ajuste_negativo') && movement.status === 'confirmado');

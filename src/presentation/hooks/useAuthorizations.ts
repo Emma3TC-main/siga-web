@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useOperations } from '../state/OperationsContext';
 
 export function useAuthorizations() {
-  const { authorizations, loading, error, resolveAuthorization: resolve, verifyMfaCode } = useOperations();
+  const { authorizations, loading, error, resolveAuthorization: resolve } = useOperations();
 
   const resolveAuthorization = useCallback(
     (authorizationId: string, approved: boolean, resolverId: string, reason?: string) =>
@@ -10,5 +10,5 @@ export function useAuthorizations() {
     [resolve],
   );
 
-  return { authorizations, loading, error, resolveAuthorization, verifyMfaCode };
+  return { authorizations, loading, error, resolveAuthorization };
 }

@@ -3,37 +3,38 @@ import type { OperationsUseCases } from '../../application/operations/Operations
 import type { ConfirmMovementInput, ConfirmMovementResult } from '../../application/movements/ConfirmMovement';
 import type { RegisterMovementInput, RegisterMovementResult } from '../../application/movements/RegisterMovement';
 import type { ResolveAuthorizationInput } from '../../application/authorizations/ResolveAuthorization';
-import type { Alert } from '../../domain/entities/Alert';
+import type { Notification } from '../../domain/entities/Notification';
 import type { AuditEvent } from '../../domain/entities/AuditEvent';
 import type { Authorization } from '../../domain/entities/Authorization';
 import type { Movement } from '../../domain/entities/Movement';
-import type { CreateUserInput } from '../../application/users/CreateUser';
 import type { PhysicalCount } from '../../domain/entities/PhysicalCount';
-import type { ReportSeries } from '../../domain/entities/ReportSeries';
-import type { User, UserChanges } from '../../domain/entities/User';
+import type { User } from '../../domain/entities/User';
 import type { StockEntry } from '../../domain/entities/Stock';
 import { getErrorMessage } from '../../shared/errors/getErrorMessage';
+import { NotFoundError } from '../../domain/errors';
 
 interface OperationsContextValue {
   stock: StockEntry[];
   movements: Movement[];
   authorizations: Authorization[];
-  alerts: Alert[];
+  alerts: Notification[];
+  unreadNotificationCount: number | null;
+  notificationsLoading: boolean;
+  notificationError: Error | null;
   auditLog: AuditEvent[];
   physicalCounts: PhysicalCount[];
-  users: User[];
-  reportSeries: ReportSeries | null;
+  operationalUsers: User[];
   /** `true` hasta completar la carga inicial. */
   loading: boolean;
   /** Mensaje de la última carga fallida; `null` si todo cargó bien. */
-  error: string | null;
+  error: Error | null;
   registerMovement: (input: RegisterMovementInput) => Promise<RegisterMovementResult>;
+  submitMovement: (movementId: string) => Promise<Movement>;
   confirmMovement: (input: ConfirmMovementInput) => Promise<ConfirmMovementResult>;
   resolveAuthorization: (input: ResolveAuthorizationInput) => Promise<void>;
-  verifyMfaCode: (code: string) => Promise<boolean>;
-  createUser: (input: CreateUserInput, actorId: string) => Promise<User>;
-  updateUser: (id: string, changes: UserChanges, actorId: string) => Promise<User>;
+  searchAuditLog: (filters?: import('../../domain/repositories/AuditRepository').AuditQueryFilters) => Promise<import('../../domain/repositories/AuditRepository').AuditPage>;
   markAlertRead: (id: string) => Promise<void>;
+  refreshNotifications: () => Promise<void>;
 }
 
 const OperationsContext = createContext<OperationsContextValue | null>(null);
@@ -46,43 +47,84 @@ export function OperationsProvider({ useCases, children }: { useCases: Operation
   const [stock, setStock] = useState<StockEntry[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [authorizations, setAuthorizations] = useState<Authorization[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [auditLog, setAuditLog] = useState<AuditEvent[]>([]);
+  const [alerts, setAlerts] = useState<Notification[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState<number | null>(null);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [notificationError, setNotificationError] = useState<Error | null>(null);
+  const [auditLog] = useState<AuditEvent[]>([]);
   const [physicalCounts, setPhysicalCounts] = useState<PhysicalCount[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [reportSeries, setReportSeries] = useState<ReportSeries | null>(null);
+  const [operationalUsers, setOperationalUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const notificationListInFlight = useRef<Promise<void> | null>(null);
+  const notificationCountInFlight = useRef<Promise<void> | null>(null);
 
   const refresh = useCallback(async () => {
-    const [nextStock, nextMovements, nextAuthorizations, nextAlerts, nextAuditLog, nextUsers] = await Promise.all([
+    const [nextStock, nextMovements, nextAuthorizations, nextUsers] = await Promise.all([
       useCases.getStock.execute(),
       useCases.getMovements.execute(),
       useCases.getAuthorizations.execute(),
-      useCases.getAlerts.execute(),
-      useCases.getAuditLog.execute(),
-      useCases.getUsers.execute(),
+      useCases.getOperationalUsers.execute(),
     ]);
     setStock(nextStock);
     setMovements(nextMovements);
     setAuthorizations(nextAuthorizations);
-    setAlerts(nextAlerts);
-    setAuditLog(nextAuditLog);
-    setUsers(nextUsers);
+    setOperationalUsers(nextUsers);
   }, [useCases]);
+
+  const refreshNotificationList = useCallback((): Promise<void> => {
+    if (notificationListInFlight.current) return notificationListInFlight.current;
+    const request = useCases.listNotifications.execute({ page: 0, size: 20, unreadOnly: false })
+      .then(page => {
+        setAlerts(page.content);
+        setNotificationError(null);
+      })
+      .catch((cause: unknown) => {
+        const failure = cause instanceof Error ? cause : new Error(getErrorMessage(cause));
+        setNotificationError(failure);
+        throw failure;
+      })
+      .finally(() => {
+        notificationListInFlight.current = null;
+        setNotificationsLoading(false);
+      });
+    notificationListInFlight.current = request;
+    return request;
+  }, [useCases]);
+
+  const refreshUnreadNotificationCount = useCallback((): Promise<void> => {
+    if (notificationCountInFlight.current) return notificationCountInFlight.current;
+    const request = useCases.getUnreadNotificationCount.execute()
+      .then(count => {
+        setUnreadNotificationCount(count);
+        setNotificationError(null);
+      })
+      .catch((cause: unknown) => {
+        const failure = cause instanceof Error ? cause : new Error(getErrorMessage(cause));
+        setNotificationError(failure);
+        throw failure;
+      })
+      .finally(() => {
+        notificationCountInFlight.current = null;
+      });
+    notificationCountInFlight.current = request;
+    return request;
+  }, [useCases]);
+
+  const refreshNotifications = useCallback(async () => {
+    await Promise.all([refreshNotificationList(), refreshUnreadNotificationCount()]);
+  }, [refreshNotificationList, refreshUnreadNotificationCount]);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([refresh(), useCases.getPhysicalCounts.execute(), useCases.getReportSeries.execute()])
-      .then(([, counts, series]) => {
+    refresh()
+      .then(() => {
         if (cancelled) return;
-        setPhysicalCounts(counts);
-        setReportSeries(series);
         setError(null);
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setError(getErrorMessage(cause));
+        if (!cancelled) setError(cause instanceof Error ? cause : new Error(getErrorMessage(cause)));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -91,6 +133,46 @@ export function OperationsProvider({ useCases, children }: { useCases: Operation
       cancelled = true;
     };
   }, [useCases, refresh]);
+
+  useEffect(() => {
+    refreshNotifications().catch(() => undefined);
+  }, [refreshNotifications]);
+
+  useEffect(() => {
+    let timer: number | undefined;
+    let stopped = false;
+    let running = false;
+
+    const schedule = () => {
+      if (stopped || document.hidden) return;
+      timer = window.setTimeout(run, 30_000);
+    };
+    const run = async () => {
+      if (stopped || document.hidden || running) return;
+      running = true;
+      try {
+        await refreshUnreadNotificationCount();
+      } catch {
+        // The visible error state is retained; polling continues on the next cycle.
+      } finally {
+        running = false;
+        schedule();
+      }
+    };
+    const onVisibilityChange = () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = undefined;
+      if (!document.hidden) void run();
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    schedule();
+    return () => {
+      stopped = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [refreshUnreadNotificationCount]);
 
   /** Encadena las operaciones para que dos acciones seguidas no se pisen al leer y escribir el stock. */
   const runExclusive = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
@@ -105,6 +187,12 @@ export function OperationsProvider({ useCases, children }: { useCases: Operation
     return result;
   }), [useCases, refresh, runExclusive]);
 
+  const submitMovement = useCallback((movementId: string) => runExclusive(async () => {
+    const movement = await useCases.registerMovement.submitExisting(movementId);
+    await refresh();
+    return movement;
+  }), [useCases, refresh, runExclusive]);
+
   const confirmMovement = useCallback((input: ConfirmMovementInput) => runExclusive(async () => {
     const result = await useCases.confirmMovement.execute(input);
     if (result.outcome === 'confirmed') await refresh();
@@ -116,30 +204,26 @@ export function OperationsProvider({ useCases, children }: { useCases: Operation
     await refresh();
   }), [useCases, refresh, runExclusive]);
 
-  const verifyMfaCode = useCallback((code: string) => useCases.verifyMfaCode.execute(code), [useCases]);
-
-  const createUser = useCallback((input: CreateUserInput, actorId: string) => runExclusive(async () => {
-    const user = await useCases.createUser.execute(input, actorId);
-    await refresh();
-    return user;
-  }), [useCases, refresh, runExclusive]);
-
-  const updateUser = useCallback((id: string, changes: UserChanges, actorId: string) => runExclusive(async () => {
-    const user = await useCases.updateUser.execute(id, changes, actorId);
-    await refresh();
-    return user;
-  }), [useCases, refresh, runExclusive]);
-
   const markAlertRead = useCallback((id: string) => runExclusive(async () => {
-    await useCases.markAlertRead.execute(id);
-    await refresh();
-  }), [useCases, refresh, runExclusive]);
+    try {
+      await useCases.markNotificationRead.execute(id);
+    } catch (cause) {
+      if (!(cause instanceof NotFoundError)) throw cause;
+    }
+    await refreshNotifications();
+  }), [useCases, refreshNotifications, runExclusive]);
+
+  const searchAuditLog = useCallback((filters?: import('../../domain/repositories/AuditRepository').AuditQueryFilters) => {
+    return useCases.getAuditLog.search(filters);
+  }, [useCases]);
 
   const value = useMemo<OperationsContextValue>(() => ({
-    stock, movements, authorizations, alerts, auditLog, physicalCounts, users, reportSeries, loading, error,
-    registerMovement, confirmMovement, resolveAuthorization, verifyMfaCode, createUser, updateUser, markAlertRead,
-  }), [stock, movements, authorizations, alerts, auditLog, physicalCounts, users, reportSeries, loading, error,
-    registerMovement, confirmMovement, resolveAuthorization, verifyMfaCode, createUser, updateUser, markAlertRead]);
+    stock, movements, authorizations, alerts, unreadNotificationCount, notificationsLoading, notificationError,
+    auditLog, physicalCounts, operationalUsers, loading, error, registerMovement, submitMovement, confirmMovement,
+    resolveAuthorization, searchAuditLog, markAlertRead, refreshNotifications,
+  }), [stock, movements, authorizations, alerts, unreadNotificationCount, notificationsLoading, notificationError,
+    auditLog, physicalCounts, operationalUsers, loading, error, registerMovement, submitMovement, confirmMovement,
+    resolveAuthorization, searchAuditLog, markAlertRead, refreshNotifications]);
 
   return <OperationsContext.Provider value={value}>{children}</OperationsContext.Provider>;
 }

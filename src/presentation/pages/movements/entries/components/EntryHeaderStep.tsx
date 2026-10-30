@@ -85,10 +85,10 @@ return (
                 key={s.id}
                 value={s.id}
               >
-                {s.code} — {s.name}
-                {s.commercialName ? ` (${s.commercialName})` : ''}
+                {s.code} — {s.businessName}
+                {s.tradeName ? ` (${s.tradeName})` : ''}
                 {' · '}
-                RUC {s.ruc}
+                RUC {s.taxId}
               </option>
 
             ))}
@@ -129,11 +129,11 @@ return (
               <div className="min-w-0">
 
                 <div className="font-semibold text-sm text-[#093C5D] truncate">
-                  {selectedSupplier.name}
+                  {selectedSupplier.businessName}
                 </div>
 
                 <div className="text-xs text-gray-400 font-mono mt-0.5">
-                  {selectedSupplier.code} · RUC {selectedSupplier.ruc}
+                  {selectedSupplier.code} · RUC {selectedSupplier.taxId}
                 </div>
 
               </div>

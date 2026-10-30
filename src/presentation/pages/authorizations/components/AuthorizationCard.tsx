@@ -15,10 +15,10 @@ export interface AuthorizationCardProps {
   onView: (authId: string) => void;
   onApprove: (authId: string) => void;
   onReject: (authId: string) => void;
-  onConfirmMfa: (authId: string) => void;
+  onConfirm: (authId: string) => void;
 }
 
-export function AuthorizationCard({ resolved, canAuthorize, loading, onOpen, onView, onApprove, onReject, onConfirmMfa }: AuthorizationCardProps) {
+export function AuthorizationCard({ resolved, canAuthorize, loading, onOpen, onView, onApprove, onReject, onConfirm }: AuthorizationCardProps) {
   const { auth, product, unit, fromLocation, toLocation, requester, registeredBy, resolvedBy, movement, sensitivity } = resolved;
   const status = statusBadge(auth.status);
 
@@ -63,7 +63,7 @@ export function AuthorizationCard({ resolved, canAuthorize, loading, onOpen, onV
       )}
       {auth.status === 'aprobado' && canAuthorize && movement?.status === 'autorizado' && (
         <div className="mt-3 pt-3 border-t border-gray-100" onClick={e => e.stopPropagation()}>
-          <Button variant="primary" size="sm" icon={<ShieldIcon size={13} />} className="w-full" onClick={() => onConfirmMfa(auth.id)}>Confirmar movimiento con MFA</Button>
+          <Button variant="primary" size="sm" icon={<ShieldIcon size={13} />} className="w-full" onClick={() => onConfirm(auth.id)}>Confirmar movimiento autorizado</Button>
         </div>
       )}
       {auth.status === 'aprobado' && movement?.status === 'confirmado' && (

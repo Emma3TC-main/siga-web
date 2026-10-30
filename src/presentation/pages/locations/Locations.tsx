@@ -65,7 +65,6 @@ function LocationNode({ loc, depth, selected, expandedIds, locations, stock, onS
         <div className="flex items-center gap-3 text-xs flex-shrink-0 pr-3">
           {subtreeCount > 0 && <span className="text-[#3B7597] font-semibold">{subtreeCount} ítems</span>}
           {locQty > 0 && <span className="text-[#093C5D] font-bold">{formatNumber(locQty)}</span>}
-          {loc.capacity && locQty > 0 && <span className="text-gray-400">{Math.round((locQty / loc.capacity) * 100)}%</span>}
         </div>
       </div>
       {expanded && children.map(c => (
@@ -150,10 +149,8 @@ export default function Locations() {
                     <div className="text-xs text-gray-400 mt-0.5">cantidad en ubicación</div>
                   </div>
                   <div className="p-3 bg-gray-50 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-[#6FD1D7]">
-                      {detail.capacity ? `${Math.round((detailQty / detail.capacity) * 100)}%` : '—'}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-0.5">ocupación</div>
+                    <div className="text-2xl font-bold text-[#6FD1D7]">{TYPE_LABELS[detail.type] ?? detail.type}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">tipo de ubicación</div>
                   </div>
                 </div>
               </div>

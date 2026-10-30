@@ -1,147 +1,140 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../state/AppContext';
-import { useProducts } from '../../hooks/useProducts';
+import { useProductAdmin } from '../../hooks/useProductAdmin';
 import { useCategories } from '../../hooks/useCategories';
 import { useUnits } from '../../hooks/useUnits';
+import { ValidationError } from '../../../domain/errors';
+import { validateProduct } from '../../../domain/rules/catalogRules';
+import { hasUserPermission } from '../../../domain/rules/permissionRules';
+import type { CreateProductCommand, Product, ProductListQuery, ProductSort, ProductTechnicalAttributes, ProductType } from '../../../domain/entities/Product';
+import { ApiError } from '../../../infrastructure/http/ApiClient';
 import { getErrorMessage } from '../../../shared/errors/getErrorMessage';
 import { getBreadcrumbs } from '../../navigation/routeRegistry';
-import { Button, PageHeader, PlusIcon } from '../../components/ui';
-import { hasPermission } from '../../../domain/rules/permissionRules';
-import { EMPTY_PRODUCT_FORM, type ProductFormData } from './products/constants';
+import { Button, EmptyState, PackageIcon, PageHeader, PlusIcon, Spinner } from '../../components/ui';
+import { EMPTY_PRODUCT_FORM, formFromProduct, type ProductFormData } from './products/constants';
 import { ProductFiltersBar } from './products/components/ProductFiltersBar';
 import { ProductsTable } from './products/components/ProductsTable';
 import { ProductDetailModal } from './products/components/ProductDetailModal';
 import { ProductFormModal } from './products/components/ProductFormModal';
+import { ProductStatusModal } from './products/components/ProductStatusModal';
+
+const PAGE_SIZE = 20;
+const codeOf = (error: unknown) => error instanceof ApiError && typeof error.data?.code === 'string' ? error.data.code : null;
+function messageOf(error: unknown): string {
+  const code = codeOf(error);
+  if (code === 'DATA_CONFLICT') return 'El SKU ya pertenece a otro producto.';
+  if (code === 'VERSION_CONFLICT') return 'El producto fue actualizado por otro usuario.';
+  if (code === 'CATEGORY_INACTIVE') return 'La categoría propuesta está inactiva.';
+  if (code === 'UNIT_OF_MEASURE_INACTIVE') return 'Una unidad de medida propuesta está inactiva.';
+  if (code === 'PRODUCT_NOT_FOUND') return 'El producto ya no está disponible.';
+  if (error instanceof ApiError && error.status === 403) return 'No tienes el permiso PRODUCT_WRITE.';
+  return getErrorMessage(error);
+}
+
+function commandFrom(form: ProductFormData): CreateProductCommand {
+  let technicalAttributes: ProductTechnicalAttributes;
+  try {
+    const parsed: unknown = JSON.parse(form.technicalAttributesText || '{}');
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error();
+    technicalAttributes = parsed as ProductTechnicalAttributes;
+  } catch {
+    throw new ValidationError('Atributos técnicos inválidos.', { technicalAttributes: 'Ingrese un objeto JSON válido.' });
+  }
+  return {
+    sku: form.sku, name: form.name, categoryId: form.categoryId, productType: form.productType,
+    storageUnitId: form.storageUnitId, baseUnitId: form.baseUnitId, minStock: Number(form.minStock),
+    requiresLot: form.requiresLot, requiresHeatNumber: form.requiresHeatNumber,
+    requiresExpiry: form.requiresExpiry, requiresSerial: form.requiresSerial,
+    technicalAttributes, conversions: form.conversions.map(conversion => ({ ...conversion })),
+  };
+}
 
 export default function Products() {
   const { state, navigate, showToast } = useApp();
-  const { stock, currentUser } = state;
-  const { products, createProduct, updateProduct } = useProducts();
+  const { currentUser } = state;
+  const { products, productPage, loading, error, loadProducts, getProduct, createProduct, updateProduct, setProductStatus } = useProductAdmin();
   const { categories } = useCategories();
   const { units } = useUnits();
+  const canRead = hasUserPermission(currentUser, 'products', 'view');
+  const canManage = hasUserPermission(currentUser, 'products', 'edit');
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [filterCat, setFilterCat] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [detailId, setDetailId] = useState<string | null>(null);
-  const [editMode, setEditMode] = useState(false);
+  const [q, setQ] = useState('');
+  const [productType, setProductType] = useState<'' | ProductType>('');
+  const [categoryId, setCategoryId] = useState('');
+  const [active, setActive] = useState<'all' | 'active' | 'inactive'>('all');
+  const [sort, setSort] = useState<ProductSort>('sku,asc');
+  const [page, setPage] = useState(0);
+  const [detail, setDetail] = useState<Product | null>(null);
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<Product | null>(null);
   const [form, setForm] = useState<ProductFormData>({ ...EMPTY_PRODUCT_FORM });
-  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
-  const canCreate = hasPermission(currentUser?.role, 'catalogs', 'create');
-  const canEdit = hasPermission(currentUser?.role, 'catalogs', 'edit');
+  const query = useMemo<ProductListQuery>(() => ({
+    page, size: PAGE_SIZE, sort, ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}),
+    ...(productType ? { productType } : {}), ...(active === 'all' ? {} : { active: active === 'active' }),
+  }), [active, categoryId, page, productType, q, sort]);
 
-  const getStock = (pid: string) => stock.filter(s => s.productId === pid).reduce((sum, s) => sum + s.quantity, 0);
+  useEffect(() => { const timer = window.setTimeout(() => { setPage(0); setQ(search.trim()); }, 300); return () => window.clearTimeout(timer); }, [search]);
+  useEffect(() => { if (canRead) void loadProducts(query).catch(() => undefined); }, [canRead, loadProducts, query]);
+  const totalPages = Math.max(1, Math.ceil(productPage.totalElements / productPage.size));
 
-  const filtered = products.filter(p => {
-    const q = search.toLowerCase();
-    if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
-    if (filterType && p.type !== filterType) return false;
-    if (filterCat && p.categoryId !== filterCat) return false;
-    return true;
-  });
+  const loadLatest = async (id: string) => {
+    const latest = await getProduct(id);
+    setEditing(latest); setForm(formFromProduct(latest)); setErrors({});
+    return latest;
+  };
+  const openNew = () => { setEditing(null); setForm({ ...EMPTY_PRODUCT_FORM, conversions: [] }); setErrors({}); setFormOpen(true); };
+  const openDetail = async (id: string) => { try { setDetail(await getProduct(id)); } catch (cause) { showToast('error', messageOf(cause)); } };
+  const openEdit = async (id: string) => { try { setDetail(null); await loadLatest(id); setFormOpen(true); } catch (cause) { showToast('error', messageOf(cause)); } };
+  const openStatus = async (id: string) => { try { setDetail(null); setStatusTarget(await getProduct(id)); } catch (cause) { showToast('error', messageOf(cause)); } };
 
-  const detail = detailId ? products.find(p => p.id === detailId) ?? null : null;
-  const detailUnit = detail ? units.find(u => u.id === detail.unitId) ?? null : null;
-  const detailCat = detail ? categories.find(c => c.id === detail.categoryId) ?? null : null;
-
-  function openNew() {
-    setForm({ ...EMPTY_PRODUCT_FORM });
-    setEditMode(false);
-    setDetailId(null);
-    setModalOpen(true);
-  }
-
-  function openEdit(pid: string) {
-    const p = products.find(x => x.id === pid)!;
-    setForm({
-      name: p.name, sku: p.sku, type: p.type, categoryId: p.categoryId, unitId: p.unitId,
-      description: p.description ?? '', minStock: p.minStock, reorderPoint: p.reorderPoint ?? 0,
-      avgCost: p.avgCost, sensitiveMovement: p.sensitiveMovement, requiresBatch: p.requiresBatch,
-      requiresSerial: p.requiresSerial, requiresExpiry: p.requiresExpiry, requiresColada: p.requiresColada,
-    });
-    setEditMode(true);
-    setDetailId(pid);
-    setModalOpen(true);
-  }
-
-  function handleFieldChange(patch: Partial<ProductFormData>) {
-    setForm(f => ({ ...f, ...patch }));
-  }
-
-  async function handleSave() {
-    if (!form.name.trim() || !form.sku.trim()) return;
-    setLoading(true);
+  async function save() {
+    let command: CreateProductCommand;
+    try { command = commandFrom(form); const fieldErrors = validateProduct(command); if (Object.keys(fieldErrors).length) throw new ValidationError('Datos inválidos.', fieldErrors); }
+    catch (cause) { if (cause instanceof ValidationError) setErrors(cause.fields); else showToast('error', getErrorMessage(cause)); return; }
+    setSaving(true);
     try {
-      const data = {
-        name: form.name, sku: form.sku, type: form.type, categoryId: form.categoryId, unitId: form.unitId,
-        description: form.description, minStock: Number(form.minStock), reorderPoint: Number(form.reorderPoint),
-        avgCost: Number(form.avgCost), sensitiveMovement: form.sensitiveMovement,
-        requiresBatch: form.requiresBatch, requiresSerial: form.requiresSerial,
-        requiresExpiry: form.requiresExpiry, requiresColada: form.requiresColada,
-      };
-      if (editMode && detailId) {
-        await updateProduct(detailId, data);
-        showToast('success', 'Producto actualizado.');
-      } else {
-        await createProduct(data);
-        showToast('success', 'Producto creado.');
-      }
-      setModalOpen(false);
-    } catch (error) {
-      showToast('error', getErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
+      if (editing) await updateProduct(editing, command); else await createProduct(command);
+      await loadProducts(query); setEditing(null); setFormOpen(false);
+      showToast('success', editing ? 'Producto actualizado correctamente.' : 'Producto creado correctamente.');
+    } catch (cause) {
+      if (cause instanceof ValidationError) setErrors(cause.fields);
+      else if (editing && codeOf(cause) === 'VERSION_CONFLICT') {
+        try { await loadLatest(editing.id); await loadProducts(query); showToast('warning', 'El producto fue actualizado por otro usuario. Se cargaron los valores más recientes; revisa antes de reintentar.'); }
+        catch (reloadError) { showToast('error', messageOf(reloadError)); }
+      } else showToast('error', messageOf(cause));
+    } finally { setSaving(false); }
   }
 
-  return (
-    <div className="flex flex-col h-full">
-      <PageHeader title="Catálogo de Productos" description={`${products.length} productos · ${filtered.length} filtrados`}
-        breadcrumbs={getBreadcrumbs('products', navigate)}
-        actions={canCreate ? <Button variant="primary" size="sm" icon={<PlusIcon size={14} />} onClick={openNew}>Nuevo producto</Button> : undefined}
-      />
+  async function toggleStatus() {
+    if (!statusTarget) return;
+    setSaving(true);
+    try {
+      const activating = !statusTarget.active;
+      await setProductStatus(statusTarget, activating); await loadProducts(query); setStatusTarget(null);
+      showToast('success', activating ? 'Producto reactivado correctamente.' : 'Producto desactivado correctamente.');
+    } catch (cause) {
+      if (codeOf(cause) === 'VERSION_CONFLICT') {
+        try { setStatusTarget(await getProduct(statusTarget.id)); await loadProducts(query); showToast('warning', 'El producto cambió. Se recargó la versión más reciente; confirma nuevamente si corresponde.'); }
+        catch (reloadError) { setStatusTarget(null); showToast('error', messageOf(reloadError)); }
+      } else showToast('error', messageOf(cause));
+    } finally { setSaving(false); }
+  }
 
-      <ProductFiltersBar
-        search={search}
-        onSearchChange={setSearch}
-        filterType={filterType}
-        onFilterTypeChange={value => { setFilterType(value); setFilterCat(''); }}
-        filterCat={filterCat}
-        onFilterCatChange={setFilterCat}
-        categories={categories}
-      />
-
-      <ProductsTable
-        products={filtered}
-        categories={categories}
-        units={units}
-        canEdit={canEdit}
-        getStock={getStock}
-        onView={setDetailId}
-        onEdit={openEdit}
-      />
-
-      <ProductDetailModal
-        product={detail}
-        open={Boolean(detailId) && !modalOpen}
-        category={detailCat}
-        unit={detailUnit}
-        stockQuantity={detail ? getStock(detail.id) : 0}
-        onClose={() => setDetailId(null)}
-      />
-
-      <ProductFormModal
-        open={modalOpen}
-        editMode={editMode}
-        form={form}
-        categories={categories}
-        units={units}
-        loading={loading}
-        onClose={() => setModalOpen(false)}
-        onFieldChange={handleFieldChange}
-        onSave={handleSave}
-      />
-    </div>
-  );
+  return <div className="flex h-full flex-col">
+    <PageHeader title="Catálogo de Productos" description={`${productPage.totalElements} productos · filtros y orden aplicados por Catalog`} breadcrumbs={getBreadcrumbs('products', navigate)}
+      actions={canManage ? <Button size="sm" icon={<PlusIcon size={14} />} onClick={openNew}>Nuevo producto</Button> : undefined} />
+    <ProductFiltersBar search={search} onSearchChange={setSearch} productType={productType} onProductTypeChange={value => { setPage(0); setProductType(value); }} categoryId={categoryId} onCategoryChange={value => { setPage(0); setCategoryId(value); }} active={active} onActiveChange={value => { setPage(0); setActive(value); }} sort={sort} onSortChange={value => { setPage(0); setSort(value); }} categories={categories} />
+    {!canRead && <EmptyState icon={<PackageIcon size={48} />} title="Acceso restringido" description="Necesitas CATALOG_READ o PRODUCT_WRITE para consultar productos." />}
+    {canRead && loading && <div className="flex flex-1 items-center justify-center gap-2 text-sm text-gray-500"><Spinner /> Cargando productos…</div>}
+    {canRead && !loading && Boolean(error) && <div className="p-6"><EmptyState icon={<PackageIcon size={48} />} title="No fue posible consultar productos" description={messageOf(error)} /><div className="mt-4 flex justify-center"><Button variant="outline" onClick={() => void loadProducts(query).catch(() => undefined)}>Reintentar</Button></div></div>}
+    {canRead && !loading && !error && <ProductsTable products={products} categories={categories} units={units} canEdit={canManage} onView={id => void openDetail(id)} onEdit={id => void openEdit(id)} onToggleStatus={id => void openStatus(id)} />}
+    {canRead && !loading && !error && productPage.totalElements > 0 && <div className="flex items-center justify-between border-t bg-white px-6 py-3 text-sm"><span>Página {productPage.page + 1} de {totalPages}</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(value => value - 1)}>Anterior</Button><Button variant="outline" size="sm" disabled={page + 1 >= totalPages} onClick={() => setPage(value => value + 1)}>Siguiente</Button></div></div>}
+    <ProductDetailModal product={detail} open={!!detail} category={detail ? categories.find(item => item.id === detail.categoryId) ?? null : null} units={units} canEdit={canManage} onClose={() => setDetail(null)} onEdit={id => void openEdit(id)} onToggleStatus={id => void openStatus(id)} />
+    <ProductFormModal open={formOpen} editMode={!!editing} form={form} categories={categories} units={units} errors={errors} loading={saving} onClose={() => { setFormOpen(false); setEditing(null); }} onFieldChange={patch => { setForm(previous => ({ ...previous, ...patch })); setErrors({}); }} onSave={() => void save()} />
+    <ProductStatusModal target={statusTarget} loading={saving} onClose={() => setStatusTarget(null)} onConfirm={() => void toggleStatus()} />
+  </div>;
 }

@@ -77,11 +77,11 @@ return (
         <div className="min-w-0">
 
           <div className="font-semibold text-sm text-[#093C5D]">
-            {supplier.name}
+            {supplier.businessName}
           </div>
 
           <div className="text-xs text-gray-400 font-mono mt-0.5">
-            {supplier.code} · RUC {supplier.ruc}
+            {supplier.code} · RUC {supplier.taxId}
           </div>
 
         </div>

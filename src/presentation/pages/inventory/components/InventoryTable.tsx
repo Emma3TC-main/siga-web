@@ -133,7 +133,7 @@ export function InventoryTable({
 
                   <td className="px-4 py-3">
                     <Badge variant="primary">
-                      {TYPE_LABEL[row.type] ?? row.type}
+                      {row.type ? TYPE_LABEL[row.type] ?? row.type : row.productType}
                     </Badge>
                   </td>
 
@@ -202,7 +202,7 @@ export function InventoryTable({
                   <td className="px-4 py-3 text-right">
 
                     <span className="text-xs font-mono text-gray-600 tabular-nums">
-                      {formatCurrency(row.avgCost)}
+                      {formatCurrency(row.avgCost ?? 0)}
                     </span>
 
                   </td>
@@ -309,7 +309,7 @@ export function InventoryTable({
                   <div className="flex flex-wrap items-center gap-2 mt-2">
 
                     <Badge variant="primary">
-                      {TYPE_LABEL[row.type] ?? row.type}
+                      {row.type ? TYPE_LABEL[row.type] ?? row.type : row.productType}
                     </Badge>
 
                     <InventoryStatusBadge

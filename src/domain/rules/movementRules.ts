@@ -4,6 +4,34 @@ import type { Movement, MovementLine } from '../entities/Movement';
 import type { Product } from '../entities/Product';
 import type { StockEntry } from '../entities/Stock';
 
+export interface MovementUnitContract {
+  baseUnitId: string | null;
+  conversionSourceUnitIds: Set<string>;
+  validUnitIds: Set<string>;
+}
+
+export function movementUnitContract(product: Product): MovementUnitContract {
+  const baseUnitId = product.baseUnitId?.trim() || null;
+  const conversionSourceUnitIds = new Set<string>();
+  const validUnitIds = new Set<string>();
+  if (baseUnitId) validUnitIds.add(baseUnitId);
+  for (const conversion of product.conversions ?? []) {
+    if (conversion.active && baseUnitId && conversion.toUnitId === baseUnitId && conversion.fromUnitId.trim()) {
+      conversionSourceUnitIds.add(conversion.fromUnitId);
+      validUnitIds.add(conversion.fromUnitId);
+    }
+  }
+  return { baseUnitId, conversionSourceUnitIds, validUnitIds };
+}
+
+export function movementUnitIds(product: Product): Set<string> {
+  return movementUnitContract(product).validUnitIds;
+}
+
+export function supportsMovementUnit(product: Product, unitId: string): boolean {
+  return movementUnitIds(product).has(unitId);
+}
+
 export function getMovementLines(movement: Movement): MovementLine[] {
   return movement.lines ?? [{
     id: '1', productId: movement.productId, quantity: movement.quantity, unitId: movement.unitId,

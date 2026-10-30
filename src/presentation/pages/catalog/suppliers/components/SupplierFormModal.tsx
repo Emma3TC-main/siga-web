@@ -32,18 +32,18 @@ export function SupplierFormModal({ open, onClose, editId, form, errors, loading
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {field('code', 'Código interno', { placeholder: 'PROV-001' })}
-          {field('ruc', 'RUC / Identificador tributario', { placeholder: '20123456789' })}
+          {field('taxId', 'RUC / Identificador tributario', { placeholder: '20123456789' })}
         </div>
-        {field('name', 'Razón social', { placeholder: 'Empresa S.A.C.' })}
+        {field('businessName', 'Razón social', { placeholder: 'Empresa S.A.C.' })}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {field('commercialName', 'Nombre comercial', { required: false, placeholder: 'Nombre comercial (opcional)' })}
-          {field('contact', 'Nombre de contacto', { placeholder: 'Juan Pérez' })}
+          {field('tradeName', 'Nombre comercial', { required: false, placeholder: 'Nombre comercial (opcional)' })}
+          {field('contactName', 'Nombre de contacto', { required: false, placeholder: 'Juan Pérez' })}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {field('phone', 'Teléfono', { placeholder: '+51 1 2345678' })}
-          {field('email', 'Correo electrónico', { placeholder: 'ventas@empresa.com' })}
+          {field('phone', 'Teléfono', { required: false, placeholder: '+51 1 2345678' })}
+          {field('email', 'Correo electrónico', { required: false, placeholder: 'ventas@empresa.com' })}
         </div>
-        {field('address', 'Dirección', { placeholder: 'Av. Industrial 123, Lima' })}
+        {field('address', 'Dirección', { required: false, placeholder: 'Av. Industrial 123, Lima' })}
 
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-3 border-t border-gray-100">
           <Button variant="outline" onClick={onClose}>Cancelar</Button>

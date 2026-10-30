@@ -25,22 +25,24 @@ export class ResolveAuthorization {
   async execute({ authorizationId, approved, resolverId, reason }: ResolveAuthorizationInput): Promise<void> {
     const authorization = await this.authorizations.getById(authorizationId);
     if (authorization) {
-      await this.authorizations.update({
-        ...authorization,
-        status: approved ? 'aprobado' : 'rechazado',
-        resolvedAt: this.clock().toISOString(),
-        resolvedBy: resolverId,
-        rejectionReason: reason,
-      });
       const movement = await this.movements.getById(authorization.movementId);
       if (movement) {
         await this.movements.update(approved
           ? { ...movement, status: 'autorizado', authorizedBy: resolverId }
           : { ...movement, status: 'rechazado', rejectedBy: resolverId, rejectionReason: reason });
       }
+      if (!this.movements.isAuthoritative) {
+        await this.authorizations.update({
+          ...authorization,
+          status: approved ? 'aprobado' : 'rechazado',
+          resolvedAt: this.clock().toISOString(),
+          resolvedBy: resolverId,
+          rejectionReason: reason,
+        });
+      }
     }
 
-    await this.audit.add({
+    if (!this.movements.isAuthoritative) await this.audit.add({
       userId: resolverId,
       action: approved ? 'AUTHORIZE' : 'REJECT',
       module: 'Autorizaciones',

@@ -72,7 +72,7 @@ export function buildInventoryRows(
         nearestExpiry,
         cat: categories.find(category => category.id === product.categoryId),
         unit: units.find(unit => unit.id === product.unitId),
-        valuation: totalQty * product.avgCost,
+        valuation: totalQty * (product.avgCost ?? 0),
       };
     });
 }

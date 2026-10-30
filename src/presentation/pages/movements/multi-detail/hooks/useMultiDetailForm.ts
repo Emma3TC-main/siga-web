@@ -3,11 +3,13 @@ import { useApp } from '../../../../state/AppContext';
 import { useMovements } from '../../../../hooks/useMovements';
 import { useStock } from '../../../../hooks/useStock';
 import { useProducts } from '../../../../hooks/useProducts';
-import { nextMovementId } from '../../../../../domain/rules/movementRules';
+import { nextMovementId, supportsMovementUnit } from '../../../../../domain/rules/movementRules';
 import { getErrorMessage } from '../../../../../shared/errors/getErrorMessage';
 import { formatNumber } from '../../../../components/ui';
 import type { Movement, MovementLine, MovementType } from '../../../../../domain/entities/Movement';
 import { MODE_CONFIG, type MovementMode } from '../constants';
+import { evidenceUseCases } from '../../../../../app/compositionRoot';
+import { MovementEvidenceRequiredError } from '../../../../../domain/errors';
 
 export type DraftLine = {
   id: string;
@@ -18,6 +20,8 @@ export type DraftLine = {
   toLocationId: string;
   batch: string;
   serial: string;
+  lotSource?: 'canonical' | 'demo';
+  assetSource?: 'canonical' | 'demo';
   expiryDate: string;
 };
 
@@ -55,7 +59,7 @@ const emptyHeader = (mode: MovementMode): MultiDetailHeaderData => ({
 export function useMultiDetailForm(mode: MovementMode) {
   const { state, showToast } = useApp();
   const { currentUser } = state;
-  const { movements: allMovements, registerMovement } = useMovements();
+  const { movements: allMovements, registerMovement, submitMovement } = useMovements();
   const { stock: allStock } = useStock();
   const { products } = useProducts();
 
@@ -65,6 +69,9 @@ export function useMultiDetailForm(mode: MovementMode) {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [evidenceAdded, setEvidenceAdded] = useState(false);
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [evidenceKey, setEvidenceKey] = useState<string | null>(null);
+  const [pendingEvidenceOwnerId, setPendingEvidenceOwnerId] = useState<string | null>(null);
   const [success, setSuccess] = useState<Movement | null>(null);
   const [selected, setSelected] = useState<Movement | null>(null);
   const [header, setHeader] = useState<MultiDetailHeaderData>(emptyHeader(mode));
@@ -88,6 +95,9 @@ export function useMultiDetailForm(mode: MovementMode) {
     setHeader(emptyHeader(mode));
     setLines([makeLine()]);
     setEvidenceAdded(false);
+    setEvidenceFile(null);
+    setEvidenceKey(null);
+    setPendingEvidenceOwnerId(null);
     setStep(0);
   }
 
@@ -109,7 +119,27 @@ export function useMultiDetailForm(mode: MovementMode) {
   }
 
   function updateLine(id: string, patch: Partial<DraftLine>) {
-    setLines(previous => previous.map(line => line.id === id ? { ...line, ...patch } : line));
+    setLines(previous => previous.map(line => {
+      if (line.id !== id) return line;
+      const updated = { ...line, ...patch };
+      if (patch.productId !== undefined && patch.productId !== line.productId) {
+        updated.batch = '';
+        updated.serial = '';
+        updated.lotSource = undefined;
+        updated.assetSource = undefined;
+      }
+      if (patch.fromLocationId !== undefined && patch.fromLocationId !== line.fromLocationId) {
+        updated.batch = '';
+        updated.serial = '';
+        updated.lotSource = undefined;
+        updated.assetSource = undefined;
+      }
+      if (patch.batch !== undefined && patch.batch !== line.batch) {
+        updated.serial = '';
+        updated.assetSource = undefined;
+      }
+      return updated;
+    }));
   }
 
   function availableStock(line: DraftLine) {
@@ -121,12 +151,14 @@ export function useMultiDetailForm(mode: MovementMode) {
     if (!product) return 'Seleccione un producto.';
     if (Number(line.quantity) <= 0) return 'Ingrese una cantidad mayor que cero.';
     if (!line.unitId) return 'Seleccione la unidad.';
+    if (!supportsMovementUnit(product, line.unitId)) return 'Seleccione una unidad válida para el producto.';
     if (requiresStock && !line.fromLocationId) return 'Seleccione la ubicación de origen.';
     if (!requiresStock && !line.toLocationId) return 'Seleccione la ubicación del ajuste positivo.';
     if (effectiveType === 'transferencia' && !line.toLocationId) return 'Seleccione la ubicación de destino.';
     if (effectiveType === 'transferencia' && line.fromLocationId === line.toLocationId) return 'Origen y destino no pueden coincidir.';
-    if (product.requiresBatch && !line.batch.trim()) return 'El lote o colada es obligatorio.';
-    if (product.requiresSerial && !line.serial.trim()) return 'El número de serie es obligatorio.';
+    const lotIdRequired = product.requiresBatch || product.requiresColada || product.requiresExpiry;
+    if (lotIdRequired && !line.batch?.trim()) return 'El lote o colada es obligatorio.';
+    if (product.requiresSerial && (!line.serial?.trim() || Number(line.quantity) !== 1)) return 'El activo es obligatorio y la cantidad debe ser 1.';
     if (product.requiresExpiry && effectiveType === 'ajuste_positivo' && !line.expiryDate) return 'La fecha de vencimiento es obligatoria.';
     if (requiresStock) {
       const requested = lines.filter(item => item.productId === line.productId && item.fromLocationId === line.fromLocationId).reduce((total, item) => total + Number(item.quantity || 0), 0);
@@ -154,6 +186,8 @@ export function useMultiDetailForm(mode: MovementMode) {
         toLocationId: effectiveType === 'transferencia' || effectiveType === 'ajuste_positivo' ? line.toLocationId : undefined,
         batch: line.batch || undefined,
         serial: line.serial || undefined,
+        lotSource: line.lotSource,
+        assetSource: line.assetSource,
         expiryDate: line.expiryDate || undefined,
         unitCost: currentAverageCost(line.productId),
         totalCost: Number(line.quantity) * currentAverageCost(line.productId),
@@ -177,7 +211,6 @@ export function useMultiDetailForm(mode: MovementMode) {
       costCenterId: header.costCenterId || undefined,
       motive: header.motive,
       observations: header.observations || undefined,
-      evidenceIds: evidenceAdded ? [`evidence-${Date.now()}`] : undefined,
       registeredBy: currentUser?.id ?? 'u1',
       createdAt: new Date().toLocaleString('es-PE'),
       confirmedAt: status === 'confirmado' ? new Date().toLocaleString('es-PE') : undefined,
@@ -189,15 +222,68 @@ export function useMultiDetailForm(mode: MovementMode) {
   }
 
   async function submit(asDraft = false) {
+    if (pendingEvidenceOwnerId) {
+      if (!evidenceFile || !evidenceKey) {
+        showToast('warning', 'Adjunta una evidencia al movimiento ya creado antes de reintentar el envío.');
+        return;
+      }
+      setLoading(true);
+      try {
+        await evidenceUseCases.uploadMovement(pendingEvidenceOwnerId, evidenceFile, evidenceKey);
+        const submittedMovement = await submitMovement(pendingEvidenceOwnerId);
+        showToast('success', 'Evidencia cargada y movimiento enviado correctamente.');
+        setLoading(false);
+        setOpen(false);
+        reset();
+        setSuccess(submittedMovement);
+      } catch (error) {
+        showToast('error', `${getErrorMessage(error)} Puede reintentarlo sin duplicar el movimiento.`);
+        setLoading(false);
+      }
+      return;
+    }
+    const invalidUnit = lines.some(line => {
+      const product = products.find(item => item.id === line.productId);
+      return !product || !line.unitId || !supportsMovementUnit(product, line.unitId);
+    });
+    if (invalidUnit) {
+      showToast('error', 'Selecciona una unidad compatible para cada producto antes de registrar el movimiento.');
+      return;
+    }
+    const traceabilityBlock = lines.map(lineError).find(error => error.startsWith('BLOCKED_BY_'));
+    if (traceabilityBlock) {
+      showToast('error', traceabilityBlock);
+      return;
+    }
     if (!asDraft && (!canContinue() || !state.networkOnline)) return;
     if (!lines[0]?.productId) return;
     setLoading(true);
     await new Promise(resolve => setTimeout(resolve, 550));
-    const status: Movement['status'] = asDraft ? 'borrador' : sensitive ? 'pendiente_autorizacion' : 'confirmado';
+    const status: Movement['status'] = asDraft ? 'borrador' : 'confirmado';
     const movement = buildMovement(status);
+    let finalMovement = movement;
     try {
-      await registerMovement(movement);
+      const result = await registerMovement(movement);
+      if (result && result.outcome === 'registered') {
+        finalMovement = result.movement;
+        if (evidenceFile) {
+          try {
+            await evidenceUseCases.uploadMovement(finalMovement.id, evidenceFile, evidenceKey ?? crypto.randomUUID());
+          } catch (error) {
+            setPendingEvidenceOwnerId(finalMovement.id);
+            showToast('error', 'El movimiento se registró, pero no se pudo cargar la evidencia. Puede reintentarlo sin duplicarlo.');
+            setLoading(false);
+            return;
+          }
+        }
+      }
     } catch (error) {
+      if (error instanceof MovementEvidenceRequiredError) {
+        setPendingEvidenceOwnerId(error.movement.id);
+        showToast('warning', 'El movimiento fue creado y requiere evidencia. Adjunta el archivo y reintenta el envío.');
+        setLoading(false);
+        return;
+      }
       showToast('error', getErrorMessage(error));
       setLoading(false);
       return;
@@ -205,8 +291,8 @@ export function useMultiDetailForm(mode: MovementMode) {
     setLoading(false);
     setOpen(false);
     reset();
-    if (asDraft) showToast('info', `Borrador ${movement.id} guardado sin afectar inventario.`);
-    else setSuccess(movement);
+    if (asDraft) showToast('info', `Borrador ${finalMovement.id} guardado sin afectar inventario.`);
+    else setSuccess(finalMovement);
   }
 
   return {
@@ -216,7 +302,9 @@ export function useMultiDetailForm(mode: MovementMode) {
     open, openForm, closeForm,
     step, setStep,
     loading,
-    evidenceAdded, setEvidenceAdded,
+    evidenceAdded, setEvidenceAdded, evidenceFile,
+    setEvidenceFile: (file: File | null) => { setEvidenceFile(file); setEvidenceAdded(Boolean(file)); setEvidenceKey(file ? crypto.randomUUID() : null); },
+    pendingEvidenceOwnerId,
     success, setSuccess,
     selected, setSelected,
     header, setHeader,

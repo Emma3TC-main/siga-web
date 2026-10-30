@@ -32,24 +32,31 @@ export class ConfirmMovement {
     const movement = await this.movements.getById(movementId);
     if (!movement || movement.status !== 'autorizado') return { outcome: 'ignored' };
 
-    const applied = applyConfirmedMovement(await this.stock.getAll(), movement);
-    if (applied.conflict) return { outcome: 'conflict', message: applied.conflict };
+    const authoritative = this.movements.isAuthoritative;
 
-    await this.stock.save(applied.stock);
-    await this.movements.update({
+    if (!authoritative) {
+      const applied = applyConfirmedMovement(await this.stock.getAll(), movement);
+      if (applied.conflict) return { outcome: 'conflict', message: applied.conflict };
+      await this.stock.save(applied.stock);
+    }
+
+    const saved = await this.movements.update({
       ...movement,
       status: 'confirmado',
       confirmedAt: this.clock().toLocaleString('es-PE'),
       version: (movement.version ?? 1) + 1,
     });
-    await this.audit.add({
-      userId: confirmerId,
-      action: 'CONFIRM_MFA',
-      module: 'Movimientos',
-      object: `Movimiento ${movement.id}`,
-      result: 'success',
-      description: `Movimiento ${movement.id} confirmado con segundo factor.`,
-    });
-    return { outcome: 'confirmed', movementId: movement.id };
+
+    if (!authoritative) {
+      await this.audit.add({
+        userId: confirmerId,
+        action: 'CONFIRM_MFA',
+        module: 'Movimientos',
+        object: `Movimiento ${movement.id}`,
+        result: 'success',
+        description: `Movimiento ${movement.id} confirmado con segundo factor.`,
+      });
+    }
+    return { outcome: 'confirmed', movementId: saved.id };
   }
 }

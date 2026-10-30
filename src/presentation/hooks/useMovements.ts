@@ -10,7 +10,7 @@ import { useOperations } from '../state/OperationsContext';
 const KEEP_VISIBLE = false;
 
 export function useMovements() {
-  const { movements, loading, error, registerMovement: register, confirmMovement: confirm } = useOperations();
+  const { movements, loading, error, registerMovement: register, submitMovement: submit, confirmMovement: confirm } = useOperations();
   const { state, showToast } = useApp();
   const online = state.networkOnline;
 
@@ -29,5 +29,7 @@ export function useMovements() {
     return result;
   }, [confirm, online, showToast]);
 
-  return { movements, loading, error, registerMovement, confirmMovement };
+  const submitMovement = useCallback((movementId: string) => submit(movementId), [submit]);
+
+  return { movements, loading, error, registerMovement, submitMovement, confirmMovement };
 }

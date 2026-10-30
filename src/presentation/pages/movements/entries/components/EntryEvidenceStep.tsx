@@ -1,11 +1,23 @@
+import { useState } from 'react';
 import { UploadIcon } from '../../../../components/ui';
 
 export interface EntryEvidenceStepProps {
   evidenceAdded: boolean;
-  onAddEvidence: () => void;
+  file: File | null;
+  onSelectFile: (file: File | null) => void;
 }
 
-export function EntryEvidenceStep({ evidenceAdded, onAddEvidence }: EntryEvidenceStepProps) {
+export function EntryEvidenceStep({ evidenceAdded, file, onSelectFile }: EntryEvidenceStepProps) {
+ const [error, setError] = useState<string | null>(null);
+ const select = (next: File | null) => {
+   setError(null);
+   if (!next) return onSelectFile(null);
+   const accepted = ['application/pdf', 'image/jpeg', 'image/png'];
+   const maximum = next.type === 'application/pdf' ? 20 * 1024 * 1024 : 10 * 1024 * 1024;
+   if (!accepted.includes(next.type)) return setError('El archivo debe ser PDF, JPG, JPEG o PNG.');
+   if (next.size > maximum) return setError(next.type === 'application/pdf' ? 'El PDF no puede superar 20 MB.' : 'La imagen no puede superar 10 MB.');
+   onSelectFile(next);
+ };
  return (
   <div className="space-y-5">
 
@@ -15,12 +27,12 @@ export function EntryEvidenceStep({ evidenceAdded, onAddEvidence }: EntryEvidenc
       </h3>
 
       <p className="text-xs text-gray-500 mt-1">
-        PDF, JPG, JPEG o PNG · máximo 10 MB.
+        PDF hasta 20 MB; JPG, JPEG o PNG hasta 10 MB.
       </p>
     </div>
 
 
-    <button
+    <label
       className={`
         w-full
         border-2 border-dashed
@@ -34,7 +46,6 @@ export function EntryEvidenceStep({ evidenceAdded, onAddEvidence }: EntryEvidenc
             : 'border-gray-200 bg-gray-50/40 hover:border-[#3B7597] hover:bg-[#3B7597]/[0.03]'
         }
       `}
-      onClick={onAddEvidence}
     >
 
       <div
@@ -71,19 +82,17 @@ export function EntryEvidenceStep({ evidenceAdded, onAddEvidence }: EntryEvidenc
           }
         `}
       >
-        {evidenceAdded
-          ? 'guia-remision-000145.pdf'
-          : 'Seleccionar evidencia'}
+        {evidenceAdded ? file?.name : 'Seleccionar evidencia'}
       </div>
 
 
       <div className="text-xs text-gray-400 mt-1.5">
-        {evidenceAdded
-          ? '1.2 MB · Archivo validado'
-          : 'Haga clic para simular la carga'}
+        {evidenceAdded ? `${Math.ceil((file?.size ?? 0) / 1024)} KB · Archivo seleccionado` : 'Haga clic para seleccionar un archivo'}
       </div>
 
-    </button>
+      <input className="sr-only" type="file" accept="application/pdf,image/jpeg,image/png" onChange={event => select(event.target.files?.[0] ?? null)} />
+    </label>
+    {error && <p className="text-xs text-red-700">{error}</p>}
 
 
     <div className="flex items-start gap-2.5 p-3.5 bg-blue-50 border border-blue-200 rounded-xl">
