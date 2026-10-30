@@ -1,4 +1,4 @@
-import type { Category, NewCategory } from '../../domain/entities/Category';
+import type { Category, CreateCategoryCommand } from '../../domain/entities/Category';
 import type { CategoryRepository } from '../../domain/repositories/CategoryRepository';
 import { DEMO_CATEGORIES } from '../../data/demo/categories';
 
@@ -9,8 +9,8 @@ export class DemoCategoryRepository implements CategoryRepository {
     return [...this.categories];
   }
 
-  async create(input: NewCategory): Promise<Category> {
-    const category: Category = { ...input, id: `cat-${Date.now()}` };
+  async create(input: CreateCategoryCommand): Promise<Category> {
+    const category: Category = { ...input, id: `cat-${Date.now()}`, active: true };
     this.categories = [...this.categories, category];
     return category;
   }

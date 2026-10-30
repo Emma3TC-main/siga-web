@@ -1,240 +1,308 @@
-import { useState } from 'react';
-import { useApp } from '../../state/AppContext';
-import { useUsers } from '../../hooks/useUsers';
-import { filterUsers } from '../../../domain/rules/userRules';
+import { useMemo, useState } from 'react';
+import { checkAdminMutationPreflight } from '../../../application/auth/adminMutationPreflight';
+import type { AdminRole } from '../../../domain/entities/AdminRole';
+import type { AdminUser } from '../../../domain/entities/AdminUser';
+import { ApiError } from '../../../infrastructure/http/ApiClient';
 import { getErrorMessage } from '../../../shared/errors/getErrorMessage';
+import { useAdminUsers } from '../../hooks/useAdminUsers';
 import { getBreadcrumbs } from '../../navigation/routeRegistry';
+import { useApp } from '../../state/AppContext';
 import {
-  Button, PageHeader, Badge, Modal, Input, Select, EmptyState,
-  DetailSection, DetailField, TableActionButton,
-  UsersIcon, PlusIcon, EditIcon, EyeIcon, SearchIcon,
+  Badge, Button, DetailField, DetailHeader, DetailSection, EditIcon, EmptyState,
+  EyeIcon, Input, Modal, PageHeader, Spinner, TableActionButton, UsersIcon, PlusIcon,
 } from '../../components/ui';
-import { UserRole } from '../../../types';
-import { ROLE_PERMISSIONS, hasPermission } from '../../../domain/rules/permissionRules';
 
-const ROLE_LABELS: Record<UserRole, string> = {
-  admin: 'Administrador',
-  supervisor: 'Supervisor',
-  warehouse: 'Almacenero',
-};
+const emptyCreateForm = { username: '', email: '', password: '', roleIds: [] as string[] };
 
-const ROLE_COLORS: Record<UserRole, string> = {
-  admin: 'error',
-  supervisor: 'warning',
-  warehouse: 'primary',
-};
+function shortId(value: string): string {
+  return value.length > 16 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
+}
 
-const emptyForm = { name: '', lastName: '', email: '', username: '', role: 'warehouse' as UserRole, scope: '' };
+function mutationErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    const code = typeof error.data?.code === 'string' ? error.data.code : null;
+    if (error.status === 403) return 'No fue posible autorizar la operación. Verifica tus permisos o vuelve a iniciar sesión.';
+    if (code === 'SELF_DEACTIVATION') return 'No puedes desactivar tu propia cuenta.';
+    if (code === 'MFA_REQUIRED') return 'La operación requiere una autenticación MFA reciente.';
+    if (code === 'ROLE_INACTIVE') return 'Uno de los roles seleccionados ya no está activo.';
+    if (code === 'ROLE_NOT_FOUND') return 'Uno de los roles seleccionados ya no está disponible.';
+    if (code === 'DATA_CONFLICT') return 'Los datos entran en conflicto con un usuario existente.';
+  }
+  return getErrorMessage(error);
+}
 
 export default function Users() {
-  const { state, navigate, showToast } = useApp();
-  const { currentUser } = state;
-  const { users, createUser, updateUser, setUserStatus } = useUsers();
-  const [search, setSearch] = useState('');
-  const [filterRole, setFilterRole] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
+  const { state, navigate, showToast, logout } = useApp();
+  const currentUser = state.currentUser;
+  const permissions = currentUser?.permissions ?? [];
+  const canManageRoles = permissions.includes('ROLE_MANAGE');
+  const {
+    users, page, size, totalElements, detail, roles, loading, detailLoading, saving,
+    error, roleError, loadPage, openUser, closeDetail, createUser, updateUser, replaceUserRoles,
+  } = useAdminUsers(canManageRoles);
+
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [editMode, setEditMode] = useState(false);
-  const [form, setForm] = useState({ ...emptyForm });
-  const [loading, setLoading] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [rolesOpen, setRolesOpen] = useState(false);
+  const [reauthOpen, setReauthOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ ...emptyCreateForm });
+  const [editForm, setEditForm] = useState({ email: '', active: true });
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const canManage = hasPermission(currentUser?.role, 'users', 'edit');
+  const totalPages = Math.max(1, Math.ceil(totalElements / size));
+  const roleById = useMemo(() => new Map(roles.map(role => [role.id, role])), [roles]);
+  const roleLabels = (user: AdminUser): string[] => user.roleIds.map(roleId => {
+    const role = roleById.get(roleId);
+    return role ? role.name : `Rol ${shortId(roleId)}`;
+  });
 
-  const filtered = filterUsers(users, { search, role: filterRole });
+  function requireFresh(requiredPermissions: string[]): boolean {
+    const result = checkAdminMutationPreflight(currentUser, requiredPermissions);
+    if (result.allowed) return true;
+    if (result.reason === 'REAUTHENTICATION_REQUIRED') setReauthOpen(true);
+    else showToast('error', 'No tienes los permisos necesarios para realizar esta operación.');
+    return false;
+  }
 
-  const detail = detailId ? users.find(u => u.id === detailId) : null;
+  async function showDetail(id: string) {
+    setDetailId(id);
+    setFormError(null);
+    try { await openUser(id); }
+    catch (cause) { setFormError(getErrorMessage(cause)); }
+  }
 
-  function openNew() {
-    setForm({ ...emptyForm });
-    setEditMode(false);
+  function closeUserDetail() {
     setDetailId(null);
-    setModalOpen(true);
+    setFormError(null);
+    closeDetail();
   }
 
-  function openEdit(uid: string) {
-    const u = users.find(x => x.id === uid)!;
-    setForm({ name: u.name, lastName: u.lastName, email: u.email, username: u.username, role: u.role, scope: u.scope ?? '' });
-    setEditMode(true);
-    setDetailId(uid);
-    setModalOpen(true);
+  function openCreate() {
+    setCreateForm({ ...emptyCreateForm, roleIds: [] });
+    setFormError(null);
+    setCreateOpen(true);
   }
 
-  async function handleSave() {
-    if (!form.name.trim() || !form.email.trim()) return;
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
+  async function submitCreate() {
+    const username = createForm.username.trim();
+    const email = createForm.email.trim();
+    if (!username || !email) {
+      setFormError('Username y correo electrónico son obligatorios.');
+      return;
+    }
+    if (createForm.password.length < 12 || createForm.password.length > 1024) {
+      setFormError('La contraseña inicial debe tener entre 12 y 1024 caracteres.');
+      return;
+    }
+    const required = createForm.roleIds.length > 0 ? ['USER_MANAGE', 'ROLE_MANAGE'] : ['USER_MANAGE'];
+    if (!requireFresh(required)) return;
+    setFormError(null);
     try {
-      if (editMode && detailId) {
-        await updateUser(detailId, { name: form.name, lastName: form.lastName, email: form.email, username: form.username, role: form.role, scope: form.scope });
-        showToast('success', 'Usuario actualizado correctamente.');
-      } else {
-        await createUser({ name: form.name, lastName: form.lastName, email: form.email, username: form.username, role: form.role, scope: form.scope });
-        showToast('success', 'Usuario creado correctamente.');
-      }
-      setModalOpen(false);
-    } catch (error) {
-      showToast('error', getErrorMessage(error));
-    } finally {
-      setLoading(false);
+      await createUser({
+        username,
+        email,
+        password: createForm.password,
+        ...(canManageRoles && createForm.roleIds.length > 0 ? { roleIds: createForm.roleIds } : {}),
+      });
+      setCreateForm({ ...emptyCreateForm, roleIds: [] });
+      setCreateOpen(false);
+      showToast('success', 'Usuario creado correctamente.');
+    } catch (cause) {
+      setFormError(mutationErrorMessage(cause));
     }
   }
 
-  async function toggleStatus(uid: string) {
-    const u = users.find(x => x.id === uid)!;
+  async function openEdit(user: AdminUser) {
+    setFormError(null);
     try {
-      await setUserStatus(u, u.status === 'active' ? 'inactive' : 'active');
-      showToast('info', u.status === 'active' ? 'Usuario desactivado.' : 'Usuario activado.');
-    } catch (error) {
-      showToast('error', getErrorMessage(error));
+      const latest = await openUser(user.id);
+      setEditForm({ email: latest.email, active: latest.active });
+      setEditOpen(true);
+    } catch (cause) {
+      showToast('error', getErrorMessage(cause));
     }
   }
+
+  async function submitEdit() {
+    if (!detail || !editForm.email.trim()) {
+      setFormError('El correo electrónico es obligatorio.');
+      return;
+    }
+    if (!requireFresh(['USER_MANAGE'])) return;
+    setFormError(null);
+    try {
+      await updateUser(detail.id, { email: editForm.email.trim(), active: editForm.active });
+      setEditOpen(false);
+      showToast('success', 'Usuario actualizado correctamente.');
+    } catch (cause) {
+      setFormError(mutationErrorMessage(cause));
+    }
+  }
+
+  async function openRoleEditor(user: AdminUser) {
+    if (!canManageRoles) return;
+    setFormError(null);
+    try {
+      const latest = await openUser(user.id);
+      setSelectedRoleIds([...latest.roleIds]);
+      setRolesOpen(true);
+    } catch (cause) {
+      showToast('error', getErrorMessage(cause));
+    }
+  }
+
+  async function submitRoles() {
+    if (!detail || !requireFresh(['ROLE_MANAGE'])) return;
+    setFormError(null);
+    try {
+      await replaceUserRoles(detail.id, selectedRoleIds);
+      setRolesOpen(false);
+      showToast('success', 'Asignación completa de roles actualizada.');
+    } catch (cause) {
+      setFormError(mutationErrorMessage(cause));
+    }
+  }
+
+  const listError = error instanceof ApiError && error.status === 403
+    ? 'No tienes el permiso USER_MANAGE para consultar usuarios.'
+    : error ? getErrorMessage(error) : null;
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="Gestión de Usuarios" description={`${users.length} usuarios registrados`}
+      <PageHeader
+        title="Gestión de Usuarios"
+        description={`${totalElements} usuarios · orden username ASC`}
         breadcrumbs={getBreadcrumbs('users', navigate)}
-        actions={canManage ? <Button variant="primary" size="sm" icon={<PlusIcon size={14} />} onClick={openNew}>Nuevo usuario</Button> : undefined}
+        actions={permissions.includes('USER_MANAGE') ? (
+          <Button variant="primary" size="sm" icon={<PlusIcon size={14} />} onClick={openCreate}>Nuevo usuario</Button>
+        ) : undefined}
       />
 
-      <div className="flex gap-3 px-6 py-3 border-b border-gray-200 bg-white flex-wrap">
-        <div className="relative flex-1 min-w-48">
-          <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar usuarios..." className="siga-input pl-8 h-8 text-xs" />
+      {Boolean(roleError) && canManageRoles && (
+        <div className="mx-6 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Los usuarios están disponibles, pero no fue posible cargar las etiquetas de roles.
         </div>
-        <select value={filterRole} onChange={e => setFilterRole(e.target.value)} className="siga-select w-44 h-8 text-xs">
-          <option value="">Todos los roles</option>
-          {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-      </div>
+      )}
 
       <div className="flex-1 overflow-auto">
-        <div className="hidden md:block">
-        <table className="siga-table">
-          <thead><tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Área / Alcance</th><th>Username</th><th className="text-center">Estado</th><th className="text-center">Acciones</th></tr></thead>
-          <tbody>
-            {filtered.map(u => (
-              <tr key={u.id}>
-                <td>
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#093C5D] to-[#3B7597] text-white text-xs flex items-center justify-center font-bold flex-shrink-0">
-                      {u.name[0]}{u.lastName[0]}
-                    </div>
-                    <div className="min-w-0"><div className="font-medium text-sm max-w-[180px] truncate">{u.name} {u.lastName}</div><div className="text-xs text-gray-400">{u.id}</div></div>
-                  </div>
-                </td>
-                <td className="text-sm font-mono text-gray-600 max-w-[180px] truncate">{u.email}</td>
-                <td><Badge variant={ROLE_COLORS[u.role] as any}>{ROLE_LABELS[u.role]}</Badge></td>
-                <td className="text-sm text-gray-600 max-w-[140px] truncate">{u.scope ?? '—'}</td>
-                <td className="font-mono text-xs text-gray-500">{u.username}</td>
-                <td className="text-center">
-                  <button onClick={() => canManage && toggleStatus(u.id)}
-                    className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${u.status === 'active' ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
-                    {u.status === 'active' ? 'Activo' : 'Inactivo'}
-                  </button>
-                </td>
-                <td className="text-center">
-                  <div className="flex gap-1 justify-center">
-                    <TableActionButton icon={<EyeIcon size={14} />} label="Ver perfil" onClick={() => setDetailId(u.id)} />
-                    {canManage && <TableActionButton icon={<EditIcon size={14} />} label="Editar" onClick={() => openEdit(u.id)} />}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-
-        {/* Mobile card list — mirrors the pattern already used in ProductsTable/SuppliersTable/InventoryTable */}
-        <div className="md:hidden p-4 space-y-3">
-          {filtered.map(u => (
-            // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
-            <div key={u.id} onClick={() => setDetailId(u.id)} className="siga-card w-full p-4 text-left cursor-pointer" role="button" tabIndex={0}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#093C5D] to-[#3B7597] text-white text-xs flex items-center justify-center font-bold flex-shrink-0">
-                    {u.name[0]}{u.lastName[0]}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-semibold text-sm text-[#093C5D] truncate">{u.name} {u.lastName}</div>
-                    <div className="text-xs text-gray-400 truncate font-mono">{u.email}</div>
-                  </div>
-                </div>
-                <div className="flex-shrink-0"><Badge variant={ROLE_COLORS[u.role] as any}>{ROLE_LABELS[u.role]}</Badge></div>
-              </div>
-              <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                <span>{u.scope ?? '—'}</span>
-                <button onClick={e => { e.stopPropagation(); canManage && toggleStatus(u.id); }}
-                  className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${u.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'}`}>
-                  {u.status === 'active' ? 'Activo' : 'Inactivo'}
-                </button>
-              </div>
-              {canManage && (
-                <div className="flex gap-1 justify-end mt-2 pt-2 border-t border-gray-100" onClick={e => e.stopPropagation()}>
-                  <TableActionButton icon={<EyeIcon size={14} />} label="Ver perfil" onClick={() => setDetailId(u.id)} />
-                  <TableActionButton icon={<EditIcon size={14} />} label="Editar" onClick={() => openEdit(u.id)} />
-                </div>
-              )}
+        {loading && <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500"><Spinner /> Cargando usuarios de Identity…</div>}
+        {!loading && listError && (
+          <div className="p-6">
+            <EmptyState icon={<UsersIcon size={48} />} title="No fue posible consultar usuarios" description={listError} />
+            <div className="flex justify-center mt-4"><Button variant="outline" onClick={() => void loadPage(page).catch(() => undefined)}>Reintentar</Button></div>
+          </div>
+        )}
+        {!loading && !listError && users.length === 0 && <EmptyState icon={<UsersIcon size={48} />} title="No hay usuarios" description="Identity no devolvió usuarios para esta página." />}
+        {!loading && !listError && users.length > 0 && (
+          <>
+            <div className="hidden md:block">
+              <table className="siga-table">
+                <thead><tr><th>Username</th><th>Email</th><th>Roles</th><th>MFA</th><th>Estado</th><th className="text-center">Acciones</th></tr></thead>
+                <tbody>{users.map(user => (
+                  <tr key={user.id}>
+                    <td><div className="font-medium text-sm">{user.username}</div><div className="font-mono text-xs text-gray-400">{shortId(user.id)}</div></td>
+                    <td className="text-sm text-gray-600">{user.email}</td>
+                    <td><div className="flex flex-wrap gap-1">{roleLabels(user).length > 0 ? roleLabels(user).map(label => <Badge key={label} variant="primary">{label}</Badge>) : <span className="text-xs text-gray-400">Sin roles</span>}</div></td>
+                    <td><Badge variant={user.mfaEnabled ? 'success' : 'muted'}>{user.mfaEnabled ? 'Habilitado' : 'No habilitado'}</Badge></td>
+                    <td><Badge variant={user.active ? 'success' : 'muted'}>{user.active ? 'Activo' : 'Inactivo'}</Badge></td>
+                    <td className="text-center"><div className="flex justify-center gap-1">
+                      <TableActionButton icon={<EyeIcon size={14} />} label="Ver usuario" onClick={() => void showDetail(user.id)} />
+                      <TableActionButton icon={<EditIcon size={14} />} label="Editar email y estado" onClick={() => void openEdit(user)} />
+                      {canManageRoles && <Button variant="ghost" size="sm" onClick={() => void openRoleEditor(user)}>Roles</Button>}
+                    </div></td>
+                  </tr>
+                ))}</tbody>
+              </table>
             </div>
-          ))}
-        </div>
-
-        {filtered.length === 0 && <EmptyState icon={<UsersIcon size={48} />} title="No hay usuarios" description="Ajuste los filtros o cree un nuevo usuario" />}
+            <div className="md:hidden p-4 space-y-3">{users.map(user => (
+              <button key={user.id} type="button" onClick={() => void showDetail(user.id)} className="siga-card w-full p-4 text-left">
+                <div className="flex justify-between gap-3"><div><div className="font-semibold text-[#093C5D]">{user.username}</div><div className="text-xs text-gray-500">{user.email}</div></div><Badge variant={user.active ? 'success' : 'muted'}>{user.active ? 'Activo' : 'Inactivo'}</Badge></div>
+                <div className="flex flex-wrap gap-1 mt-3">{roleLabels(user).map(label => <Badge key={label} variant="primary">{label}</Badge>)}</div>
+              </button>
+            ))}</div>
+          </>
+        )}
       </div>
 
-      {/* Detail modal */}
-      <Modal open={!!detailId && !modalOpen} onClose={() => setDetailId(null)} title={`Perfil — ${detail?.name} ${detail?.lastName}`} size="md">
-        {detail && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-4 p-4 bg-[#093C5D]/3 rounded-lg">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#093C5D] to-[#3B7597] text-white text-xl flex items-center justify-center font-bold">
-                {detail.name[0]}{detail.lastName[0]}
-              </div>
-              <div>
-                <div className="font-bold text-[#093C5D] text-lg">{detail.name} {detail.lastName}</div>
-                <div className="text-sm text-gray-500">{detail.email}</div>
-                <div className="mt-1"><Badge variant={ROLE_COLORS[detail.role] as any}>{ROLE_LABELS[detail.role]}</Badge></div>
-              </div>
-            </div>
-            <DetailSection title="Información de la cuenta">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <DetailField label="ID de usuario" value={detail.id} />
-                <DetailField label="Username" value={detail.username} />
-                <DetailField label="Alcance" value={detail.scope ?? '—'} />
-                <DetailField label="Estado" value={detail.status === 'active' ? 'Activo' : 'Inactivo'} />
-                <DetailField label="Creado" value={detail.createdAt} />
-                <DetailField label="Último acceso" value={detail.lastAccess ?? '—'} />
-              </div>
-            </DetailSection>
+      {!loading && !listError && totalElements > 0 && (
+        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-6 py-3 text-sm">
+          <span className="text-gray-500">Página {page + 1} de {totalPages} · {totalElements} usuarios</span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => void loadPage(page - 1).catch(() => undefined)}>Anterior</Button>
+            <Button variant="outline" size="sm" disabled={page + 1 >= totalPages} onClick={() => void loadPage(page + 1).catch(() => undefined)}>Siguiente</Button>
+          </div>
+        </div>
+      )}
 
-            <DetailSection title="Permisos del rol">
-              <div className="p-3 bg-gray-50 rounded-lg flex flex-wrap gap-1.5">
-                {Object.entries(ROLE_PERMISSIONS[detail.role]).map(([module, actions]) => (
-                  <span key={module} className="text-xs bg-[#093C5D]/10 text-[#093C5D] px-2 py-0.5 rounded font-mono">{module}: {(actions as string[]).join(', ')}</span>
-                ))}
-              </div>
-            </DetailSection>
+      <Modal open={detailId !== null} onClose={closeUserDetail} title="Detalle de usuario" size="md">
+        {detailLoading && <div className="flex justify-center py-10"><Spinner /></div>}
+        {!detailLoading && formError && !detail && <p className="text-sm text-red-600">{formError}</p>}
+        {!detailLoading && detail && (
+          <div className="space-y-4">
+            <DetailHeader eyebrow={detail.id} title={detail.username} badges={<><Badge variant={detail.active ? 'success' : 'muted'}>{detail.active ? 'Activo' : 'Inactivo'}</Badge><Badge variant={detail.mfaEnabled ? 'success' : 'muted'}>MFA {detail.mfaEnabled ? 'habilitado' : 'no habilitado'}</Badge></>} />
+            <DetailSection title="Cuenta"><div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><DetailField label="Username" value={detail.username} /><DetailField label="Correo" value={detail.email} /></div></DetailSection>
+            <DetailSection title="Roles asignados"><div className="p-3 bg-gray-50 rounded-lg flex flex-wrap gap-1.5">{roleLabels(detail).length > 0 ? roleLabels(detail).map(label => <Badge key={label} variant="primary">{label}</Badge>) : <span className="text-sm text-gray-500">Sin roles asignados</span>}</div></DetailSection>
+            <p className="text-xs text-gray-500">El estado MFA es únicamente informativo. Su administración no forma parte de este módulo.</p>
           </div>
         )}
       </Modal>
 
-      {/* Create/edit modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editMode ? 'Editar usuario' : 'Nuevo usuario'} size="md"
-        footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button><Button variant="primary" onClick={handleSave} loading={loading} disabled={!form.name.trim() || !form.email.trim()}>{editMode ? 'Guardar cambios' : 'Crear usuario'}</Button></>}>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Nombres" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Juan" />
-            <Input label="Apellidos" value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Pérez" />
-          </div>
-          <Input label="Correo electrónico" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="usuario@empresa.com" />
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="jperez" />
-            <Select label="Rol" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as UserRole }))}>
-              {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </Select>
-          </div>
-          <Input label="Área / Alcance" value={form.scope} onChange={e => setForm(f => ({ ...f, scope: e.target.value }))} placeholder="Almacén Principal" />
+      <Modal open={createOpen} onClose={() => { setCreateOpen(false); setCreateForm({ ...emptyCreateForm, roleIds: [] }); setFormError(null); }} title="Nuevo usuario" size="md" footer={<><Button variant="outline" onClick={() => { setCreateOpen(false); setCreateForm({ ...emptyCreateForm, roleIds: [] }); }}>Cancelar</Button><Button variant="primary" loading={saving} onClick={() => void submitCreate()}>Crear usuario</Button></>}>
+        <div className="space-y-4">
+          {formError && <p className="text-sm text-red-600">{formError}</p>}
+          <Input label="Username" value={createForm.username} maxLength={100} autoComplete="off" onChange={event => setCreateForm(form => ({ ...form, username: event.target.value }))} />
+          <Input label="Correo electrónico" type="email" value={createForm.email} maxLength={254} autoComplete="off" onChange={event => setCreateForm(form => ({ ...form, email: event.target.value }))} />
+          <Input label="Contraseña inicial" type="password" value={createForm.password} minLength={12} maxLength={1024} autoComplete="new-password" hint="Dato transitorio; no se almacena en el navegador." onChange={event => setCreateForm(form => ({ ...form, password: event.target.value }))} />
+          {canManageRoles && <RoleChecklist roles={roles} selected={createForm.roleIds} onChange={roleIds => setCreateForm(form => ({ ...form, roleIds }))} />}
+          {!canManageRoles && <p className="text-xs text-gray-500">El usuario se creará sin roles porque tu sesión no posee ROLE_MANAGE.</p>}
         </div>
       </Modal>
+
+      <Modal open={editOpen} onClose={() => { setEditOpen(false); setFormError(null); }} title={`Editar ${detail?.username ?? 'usuario'}`} size="sm" footer={<><Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button><Button variant="primary" loading={saving} onClick={() => void submitEdit()}>Guardar cambios</Button></>}>
+        <div className="space-y-4">
+          {formError && <p className="text-sm text-red-600">{formError}</p>}
+          <Input label="Correo electrónico" type="email" value={editForm.email} maxLength={254} onChange={event => setEditForm(form => ({ ...form, email: event.target.value }))} />
+          <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm"><input type="checkbox" checked={editForm.active} onChange={event => setEditForm(form => ({ ...form, active: event.target.checked }))} /><span><strong>Cuenta activa</strong><span className="block text-xs text-gray-500">Desmarcar desactiva el acceso. Identity impide la autodesactivación.</span></span></label>
+          <p className="text-xs text-gray-500">Username y MFA no son editables en este MVP.</p>
+        </div>
+      </Modal>
+
+      <Modal open={rolesOpen} onClose={() => { setRolesOpen(false); setFormError(null); }} title={`Reemplazar roles — ${detail?.username ?? ''}`} size="sm" footer={<><Button variant="outline" onClick={() => setRolesOpen(false)}>Cancelar</Button><Button variant="primary" loading={saving} onClick={() => void submitRoles()}>Confirmar reemplazo</Button></>}>
+        <div className="space-y-4">
+          {formError && <p className="text-sm text-red-600">{formError}</p>}
+          <p className="text-sm text-gray-600">Esta operación reemplaza el conjunto completo de roles. Otro administrador concurrente podría sobrescribirlo.</p>
+          <RoleChecklist roles={roles} selected={selectedRoleIds} onChange={setSelectedRoleIds} />
+        </div>
+      </Modal>
+
+      <Modal open={reauthOpen} onClose={() => setReauthOpen(false)} title="Autenticación reciente requerida" size="sm" footer={<><Button variant="outline" onClick={() => setReauthOpen(false)}>Cancelar</Button><Button variant="primary" onClick={logout}>Volver a iniciar sesión</Button></>}>
+        <p className="text-sm text-gray-600">Por seguridad, vuelve a iniciar sesión para realizar este cambio. La operación no fue enviada y no se reintentará automáticamente.</p>
+      </Modal>
     </div>
+  );
+}
+
+function RoleChecklist({ roles, selected, onChange }: {
+  roles: AdminRole[];
+  selected: string[];
+  onChange: (roleIds: string[]) => void;
+}) {
+  if (roles.length === 0) return <p className="text-sm text-gray-500">No hay roles disponibles.</p>;
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Roles</legend>
+      {roles.map(role => {
+        const checked = selected.includes(role.id);
+        const disabled = !role.active && !checked;
+        return (
+          <label key={role.id} className={`flex items-center gap-3 rounded-lg border p-3 text-sm ${disabled ? 'opacity-50' : 'cursor-pointer'}`}>
+            <input type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked ? [...selected, role.id] : selected.filter(id => id !== role.id))} />
+            <span><strong>{role.name}</strong><span className="block font-mono text-xs text-gray-500">{role.code}{!role.active ? ' · inactivo' : ''}</span></span>
+          </label>
+        );
+      })}
+    </fieldset>
   );
 }

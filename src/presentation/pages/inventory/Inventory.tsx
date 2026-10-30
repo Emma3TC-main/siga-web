@@ -6,9 +6,11 @@ import { useCategories } from '../../hooks/useCategories';
 import { useUnits } from '../../hooks/useUnits';
 import { useLocations } from '../../hooks/useLocations';
 import { useUsers } from '../../hooks/useUsers';
+import { useOperations } from '../../state/OperationsContext';
+import { ApiError } from '../../../infrastructure/http/ApiClient';
 import { filterInventoryRows, sumQuantity } from '../../../domain/rules/inventoryRules';
 import { getBreadcrumbs, routePath } from '../../navigation/routeRegistry';
-import { Button, PageHeader, formatCurrency, DownloadIcon, ArrowDownIcon } from '../../components/ui';
+import { Button, PageHeader, formatCurrency, DownloadIcon, ArrowDownIcon, Spinner } from '../../components/ui';
 import { InventoryStatsBar } from './components/InventoryStatsBar';
 import { InventoryFiltersBar } from './components/InventoryFiltersBar';
 import { InventoryTable } from './components/InventoryTable';
@@ -17,13 +19,14 @@ import { ProductDetailModal } from './components/ProductDetailModal';
 const PAGE_SIZE = 15;
 
 export default function Inventory() {
-  const { navigate } = useApp();
+  const { navigate, logout } = useApp();
   const { products } = useProducts();
   const { categories } = useCategories();
   const { units } = useUnits();
   const { locations } = useLocations();
   const { users } = useUsers();
   const { rows: allRows, getStockEntries, getProductMovements } = useInventory();
+  const { loading, error } = useOperations();
 
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
@@ -55,6 +58,32 @@ export default function Inventory() {
   function setFilterStatusAndResetPage(status: string) {
     setFilterStatus(status);
     setPage(1);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center text-gray-500 gap-4">
+        <Spinner size={32} />
+        <p>Cargando inventario...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    const isUnauthorized = error instanceof ApiError && error.status === 401;
+    const isForbidden = error instanceof ApiError && error.status === 403;
+    return (
+      <div className="flex flex-col h-full items-center justify-center text-gray-500 gap-4">
+        <div className="text-4xl text-red-500">⚠</div>
+        <h2 className="text-xl font-bold text-[#093C5D]">
+          {isUnauthorized ? 'Sesión expirada o no válida' : isForbidden ? 'Acceso denegado' : 'Error al cargar inventario'}
+        </h2>
+        <p className="max-w-md text-center">{error.message}</p>
+        {isUnauthorized && (
+          <Button variant="primary" onClick={() => logout()}>Ir al login</Button>
+        )}
+      </div>
+    );
   }
 
   return (

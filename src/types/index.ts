@@ -7,8 +7,9 @@ import type { StockEntry } from '../domain/entities/Stock';
 import type { Movement, MovementLine, MovementType, MovementStatus } from '../domain/entities/Movement';
 import type { Authorization } from '../domain/entities/Authorization';
 import type { Alert } from '../domain/entities/Alert';
+import type { Notification } from '../domain/entities/Notification';
 import type { AuditEvent } from '../domain/entities/AuditEvent';
-import type { PhysicalCount, PhysicalCountItem } from '../domain/entities/PhysicalCount';
+import type { PhysicalCount, PhysicalCountLine } from '../domain/entities/PhysicalCount';
 import type { User, UserRole } from '../domain/entities/User';
 import type { CostCenter } from '../domain/entities/CostCenter';
 import type { Responsible } from '../domain/entities/Responsible';
@@ -16,7 +17,7 @@ import type { Responsible } from '../domain/entities/Responsible';
 // Transitional re-exports: the catalog entities now live in `domain/entities`.
 // Modules not yet migrated keep importing them from here until their phase.
 export type { Product, ProductType, ProductStatus, MachineryStatus, DispatchStrategy, Category, UnitOfMeasure, Supplier, SupplierSnapshot, Location, StockEntry,
-  Movement, MovementLine, MovementType, MovementStatus, Authorization, Alert, AuditEvent, PhysicalCount, PhysicalCountItem, User, UserRole, CostCenter, Responsible };
+  Movement, MovementLine, MovementStatus, MovementType, Authorization, Alert, Notification, AuditEvent, PhysicalCount, PhysicalCountLine, User, UserRole, CostCenter, Responsible };
 
 export interface Evidence {
   id: string;
@@ -43,7 +44,10 @@ export interface AppState {
   authorizations: Authorization[];
   costCenters: CostCenter[];
   responsibles: Responsible[];
-  alerts: Alert[];
+  alerts: Notification[];
+  unreadNotificationCount: number | null;
+  notificationsLoading: boolean;
+  notificationError: Error | null;
   auditLog: AuditEvent[];
   evidences: Evidence[];
   physicalCounts: PhysicalCount[];
@@ -62,7 +66,6 @@ export interface SystemConfig {
   allowNegativeStock: false;
   storageProvider: 'minio' | 'gcs';
   storageBucket: string;
-  totpDemoCode: string;
   defaultDispatchStrategy: DispatchStrategy;
   requireEvidenceForNegativeAdjustment: true;
 }
@@ -72,7 +75,6 @@ export const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   allowNegativeStock: false,
   storageProvider: 'minio',
   storageBucket: 'siga-evidencias',
-  totpDemoCode: '123456',
   defaultDispatchStrategy: 'FIFO',
   requireEvidenceForNegativeAdjustment: true,
 };

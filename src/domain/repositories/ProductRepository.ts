@@ -1,8 +1,8 @@
-import type { NewProduct, Product } from '../entities/Product';
+import type { CreateProductCommand, Product, ProductListQuery, ProductPage, UpdateProductCommand } from '../entities/Product';
 
 export interface ProductRepository {
-  getAll(): Promise<Product[]>;
+  list(query: ProductListQuery): Promise<ProductPage>;
   getById(id: string): Promise<Product | null>;
-  create(product: NewProduct): Promise<Product>;
-  update(product: Product): Promise<Product>;
+  create(product: CreateProductCommand): Promise<Product>;
+  update(id: string, product: UpdateProductCommand): Promise<Product>;
 }

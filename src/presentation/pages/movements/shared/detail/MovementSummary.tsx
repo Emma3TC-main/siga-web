@@ -17,7 +17,7 @@ export interface MovementSummaryProps {
 export function MovementSummary({ movement, registeredByName, authorizedByName, rejectedByName, requesterName, costCenterLabel, supplier }: MovementSummaryProps) {
   const documentLabel = [movement.documentType, [movement.documentSeries, movement.documentNumber].filter(Boolean).join('-')].filter(Boolean).join(' ');
 
-  const fields: { label: string; value: ReactNode; wide?: boolean }[] = [
+  const fields: Array<{ label: string; value: ReactNode; wide?: boolean } | null> = [
     { label: 'Tipo de movimiento', value: MOVEMENT_TYPE_LABELS[movement.type] ?? movement.type },
     documentLabel ? { label: 'Documento de referencia', value: <span className="font-mono text-sm">{documentLabel}</span> } : null,
     { label: 'Fecha de registro', value: <span className="font-mono text-sm">{movement.createdAt}</span> },
@@ -31,13 +31,15 @@ export function MovementSummary({ movement, registeredByName, authorizedByName, 
     movement.motive ? { label: 'Motivo', value: <span className="font-medium text-sm whitespace-normal break-words">{movement.motive}</span>, wide: true } : null,
     movement.rejectionReason ? { label: 'Motivo del rechazo', value: <span className="font-medium text-sm whitespace-normal break-words text-red-600">{movement.rejectionReason}</span>, wide: true } : null,
     movement.correlationId ? { label: 'ID de correlación', value: <span className="font-mono text-xs">{movement.correlationId}</span> } : null,
-  ].filter((field): field is { label: string; value: ReactNode; wide?: boolean } => field !== null);
+  ];
+
+  const validFields = fields.filter((field): field is { label: string; value: ReactNode; wide?: boolean } => field !== null);
 
   return (
     <div className="space-y-5">
       <DetailSection title="Información general">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {fields.map(field => (
+          {validFields.map(field => (
             <DetailField key={field.label} label={field.label} value={field.value} className={field.wide ? 'sm:col-span-2' : ''} />
           ))}
         </div>

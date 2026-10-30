@@ -164,7 +164,7 @@ export function ProductDetailModal({
 
               <DetailField
                 label="Costo promedio"
-                value={formatCurrency(detail.avgCost)}
+                value={formatCurrency(detail.avgCost ?? 0)}
               />
 
             </div>
@@ -177,7 +177,7 @@ export function ProductDetailModal({
                 value={
                   <span className="font-semibold text-[#093C5D]">
                     {formatCurrency(
-                      detailTotalQty * detail.avgCost
+                      detailTotalQty * (detail.avgCost ?? 0)
                     )}
                   </span>
                 }

@@ -4,11 +4,13 @@ import { useProducts } from '../../hooks/useProducts';
 import { useMovements } from '../../hooks/useMovements';
 import { useLocations } from '../../hooks/useLocations';
 import { SearchIcon, BellIcon, MenuIcon, UserIcon, LogOutIcon, AlertIcon, XIcon } from '../ui';
-import { actionRoutePath, getHeaderTitle, routePath } from '../../navigation/routeRegistry';
+import { getHeaderTitle, routePath } from '../../navigation/routeRegistry';
 
 export default function Header() {
-  const { state, navigate, logout, toggleSidebar, markAlertRead, canAccess } = useApp();
-  const { currentUser, alerts, activeRoute } = state;
+  const { state, navigate, logout, toggleSidebar, markAlertRead, refreshNotifications, canAccess } = useApp();
+  const {
+    currentUser, alerts, activeRoute, unreadNotificationCount, notificationsLoading, notificationError,
+  } = state;
   const { products } = useProducts();
   const { movements } = useMovements();
   const { locations } = useLocations();
@@ -17,7 +19,7 @@ export default function Header() {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const unread = alerts.filter(a => !a.read).length;
+  const unread = unreadNotificationCount ?? 0;
 
   const currentTitle = getHeaderTitle(activeRoute);
 
@@ -81,7 +83,12 @@ export default function Header() {
 
         {/* Alerts */}
         <div className="relative">
-          <button onClick={() => { setAlertsOpen(!alertsOpen); setUserMenuOpen(false); }}
+          <button onClick={() => {
+            const opening = !alertsOpen;
+            setAlertsOpen(opening);
+            setUserMenuOpen(false);
+            if (opening) refreshNotifications();
+          }}
             className="relative p-2 rounded-lg text-gray-500 hover:text-[#093C5D] hover:bg-gray-100 transition-colors">
             <BellIcon size={18} />
             {unread > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-bold">{unread > 9 ? '9+' : unread}</span>}
@@ -93,17 +100,29 @@ export default function Header() {
                 <button onClick={() => { setAlertsOpen(false); navigate(routePath('alerts')); }} className="text-xs text-[#3B7597] hover:underline">Ver todas</button>
               </div>
               <div className="max-h-64 overflow-y-auto">
-                {alerts.slice(0, 6).map(alert => (
-                  <div key={alert.id} onClick={() => { markAlertRead(alert.id); setAlertsOpen(false); if (alert.actionRoute) navigate(actionRoutePath(alert.actionRoute)); }}
-                    className={`flex gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 ${!alert.read ? 'bg-blue-50/30' : ''}`}>
-                    <span className={`flex-shrink-0 mt-0.5 ${alert.severity === 'critical' ? 'text-red-500' : 'text-amber-500'}`}>
+                {notificationsLoading && alerts.length === 0 && (
+                  <div className="px-4 py-6 text-center text-xs text-gray-400">Cargando notificaciones…</div>
+                )}
+                {notificationError && (
+                  <div className="px-4 py-3 text-xs text-red-600 bg-red-50">No se pudieron cargar las notificaciones.</div>
+                )}
+                {!notificationsLoading && !notificationError && alerts.length === 0 && (
+                  <div className="px-4 py-6 text-center text-xs text-gray-400">No hay notificaciones.</div>
+                )}
+                {alerts.slice(0, 6).map(notification => (
+                  <div key={notification.id} onClick={() => {
+                    if (notification.readAt === null) markAlertRead(notification.id);
+                    setAlertsOpen(false);
+                  }}
+                    className={`flex gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 ${notification.readAt === null ? 'bg-blue-50/30' : ''}`}>
+                    <span className={`flex-shrink-0 mt-0.5 ${notification.severity === 'CRITICAL' ? 'text-red-500' : notification.severity === 'WARNING' ? 'text-amber-500' : 'text-[#3B7597]'}`}>
                       <AlertIcon size={14} />
                     </span>
                     <div className="min-w-0">
-                      <div className="text-xs font-semibold text-gray-700 truncate">{alert.title}</div>
-                      <div className="text-xs text-gray-400 mt-0.5 line-clamp-1">{alert.description}</div>
+                      <div className="text-xs font-semibold text-gray-700 truncate">{notification.title}</div>
+                      <div className="text-xs text-gray-400 mt-0.5 line-clamp-1">{notification.message}</div>
                     </div>
-                    {!alert.read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-1" />}
+                    {notification.readAt === null && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-1" />}
                   </div>
                 ))}
               </div>

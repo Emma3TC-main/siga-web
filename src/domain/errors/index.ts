@@ -19,3 +19,10 @@ export class NotFoundError extends DomainError {
     super(`${entity} ${id} no encontrado.`);
   }
 }
+
+/** El movimiento fue creado, pero necesita evidencia antes de poder enviarse. */
+export class MovementEvidenceRequiredError<TMovement> extends DomainError {
+  constructor(readonly movement: TMovement) {
+    super('El ajuste requiere evidencia antes de enviarse a autorización.');
+  }
+}

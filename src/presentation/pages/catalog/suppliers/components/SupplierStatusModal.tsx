@@ -13,24 +13,24 @@ export function SupplierStatusModal({ target, loading, onClose, onConfirm }: Sup
     <Modal
       open={!!target}
       onClose={onClose}
-      title={target?.status === 'active' ? '¿Desactivar proveedor?' : '¿Activar proveedor?'}
+      title={target?.active ? '¿Desactivar proveedor?' : '¿Activar proveedor?'}
       size="sm"
     >
       {target && (
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            {target.status === 'active'
-              ? `El proveedor "${target.name}" no podrá seleccionarse en nuevas recepciones, pero su información histórica se conservará intacta.`
-              : `El proveedor "${target.name}" volverá a estar disponible para nuevas recepciones.`}
+            {target.active
+              ? `El proveedor "${target.businessName}" no podrá seleccionarse en nuevas recepciones, pero su información histórica se conservará intacta.`
+              : `El proveedor "${target.businessName}" volverá a estar disponible para nuevas recepciones.`}
           </p>
           <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
             <Button
-              variant={target.status === 'active' ? 'outline' : 'primary'}
+              variant={target.active ? 'outline' : 'primary'}
               onClick={onConfirm}
               loading={loading}
             >
-              {target.status === 'active' ? 'Desactivar proveedor' : 'Activar proveedor'}
+              {target.active ? 'Desactivar proveedor' : 'Activar proveedor'}
             </Button>
           </div>
         </div>

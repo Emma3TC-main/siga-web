@@ -1,6 +1,16 @@
 import type { Location } from '../../domain/entities/Location';
 
-export const DEMO_LOCATIONS: Location[] = [
+export interface DemoLocation extends Location {
+  level: number;
+  zone?: string;
+  aisle?: string;
+  rack?: string;
+  shelf?: string;
+  position?: string;
+  capacity?: number;
+}
+
+export const DEMO_LOCATIONS: DemoLocation[] = [
   { id: 'loc1', name: 'Almacén Principal', code: 'ALM-01', type: 'almacen', level: 0, status: 'active', capacity: 10000 },
   { id: 'loc2', name: 'Zona A - Materiales', code: 'ALM-01-ZA', type: 'almacen', parentId: 'loc1', level: 1, zone: 'A', status: 'active', capacity: 3000 },
   { id: 'loc3', name: 'Pasillo A1', code: 'ALM-01-ZA-P1', type: 'almacen', parentId: 'loc2', level: 2, zone: 'A', aisle: 'A1', status: 'active' },

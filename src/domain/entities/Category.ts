@@ -1,12 +1,11 @@
-import type { ProductType } from './Product';
+export type CategoryType = 'MATERIAL' | 'INSUMO' | 'REPUESTO' | 'MAQUINARIA';
 
 export interface Category {
   id: string;
+  code: string;
   name: string;
-  type: ProductType;
-  description?: string;
-  subcategories?: string[];
+  categoryType: CategoryType;
+  active: boolean;
 }
 
-/** `id` lo asigna la fuente de datos. */
-export type NewCategory = Omit<Category, 'id'>;
+export type CreateCategoryCommand = Pick<Category, 'code' | 'name' | 'categoryType'>;

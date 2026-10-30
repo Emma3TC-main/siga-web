@@ -34,19 +34,19 @@ export function SuppliersTable({ suppliers, search, canCreate, canEdit, onOpenNe
             {suppliers.map(s => (
               <tr key={s.id}>
                 <td className="font-mono text-xs text-[#3B7597]">{s.code}</td>
-                <td className="font-mono text-xs">{s.ruc}</td>
+                <td className="font-mono text-xs">{s.taxId}</td>
                 <td>
-                  <div className="font-medium text-sm max-w-[200px] truncate">{s.name}</div>
+                  <div className="font-medium text-sm max-w-[200px] truncate">{s.businessName}</div>
                 </td>
-                <td className="text-xs text-gray-500 max-w-[160px] truncate">{s.commercialName || '—'}</td>
+                <td className="text-xs text-gray-500 max-w-[160px] truncate">{s.tradeName || '—'}</td>
                 <td className="text-xs max-w-[140px] truncate">
-                  <div className="truncate">{s.contact}</div>
-                  <div className="text-gray-400">{s.phone}</div>
+                  <div className="truncate">{s.contactName || '—'}</div>
+                  <div className="text-gray-400">{s.phone || '—'}</div>
                 </td>
-                <td className="text-xs text-gray-500 max-w-[180px] truncate">{s.email}</td>
+                <td className="text-xs text-gray-500 max-w-[180px] truncate">{s.email || '—'}</td>
                 <td className="text-center">
-                  <Badge variant={s.status === 'active' ? 'success' : 'muted'}>
-                    {s.status === 'active' ? 'Activo' : 'Inactivo'}
+                  <Badge variant={s.active ? 'success' : 'muted'}>
+                    {s.active ? 'Activo' : 'Inactivo'}
                   </Badge>
                 </td>
                 <td className="text-center">
@@ -55,9 +55,9 @@ export function SuppliersTable({ suppliers, search, canCreate, canEdit, onOpenNe
                     {canEdit && <TableActionButton icon={<EditIcon size={14} />} label="Editar" onClick={() => onEdit(s.id)} />}
                     {canEdit && (
                       <TableActionButton
-                        icon={s.status === 'active' ? <XIcon size={14} /> : <CheckIcon size={14} />}
-                        label={s.status === 'active' ? 'Desactivar' : 'Activar'}
-                        variant={s.status === 'active' ? 'warning' : 'success'}
+                        icon={s.active ? <XIcon size={14} /> : <CheckIcon size={14} />}
+                        label={s.active ? 'Desactivar' : 'Activar'}
+                        variant={s.active ? 'warning' : 'success'}
                         onClick={() => onToggleStatusRequest(s.id)}
                       />
                     )}
@@ -76,11 +76,11 @@ export function SuppliersTable({ suppliers, search, canCreate, canEdit, onOpenNe
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="font-mono text-xs text-[#3B7597]">{s.code}</div>
-                <div className="font-semibold text-sm text-[#093C5D] mt-0.5 truncate">{s.name}</div>
-                <div className="text-xs text-gray-400 truncate">RUC: {s.ruc} · {s.contact}</div>
+                <div className="font-semibold text-sm text-[#093C5D] mt-0.5 truncate">{s.businessName}</div>
+                <div className="text-xs text-gray-400 truncate">RUC: {s.taxId} · {s.contactName || 'Sin contacto'}</div>
               </div>
-              <Badge variant={s.status === 'active' ? 'success' : 'muted'}>
-                {s.status === 'active' ? 'Activo' : 'Inactivo'}
+              <Badge variant={s.active ? 'success' : 'muted'}>
+                {s.active ? 'Activo' : 'Inactivo'}
               </Badge>
             </div>
           </button>

@@ -2,7 +2,6 @@ import type { ComponentType } from 'react';
 import type { UserRole } from '../../types';
 import Login from '../pages/auth/Login';
 import Dashboard from '../pages/dashboard/Dashboard';
-import SupervisorDashboard from '../pages/dashboard/SupervisorDashboard';
 import WarehouseDashboard from '../pages/dashboard/WarehouseDashboard';
 import Inventory from '../pages/inventory/Inventory';
 import Entries from '../pages/movements/Entries';
@@ -21,6 +20,8 @@ import Suppliers from '../pages/catalog/Suppliers';
 import Categories from '../pages/catalog/Categories';
 import Units from '../pages/catalog/Units';
 import Locations from '../pages/locations/Locations';
+import LocationAdmin from '../pages/admin/LocationAdmin';
+import LotAdmin from '../pages/admin/LotAdmin';
 import Users from '../pages/admin/Users';
 import RolesPermissions from '../pages/admin/RolesPermissions';
 import Parameters from '../pages/admin/Parameters';
@@ -33,7 +34,7 @@ export type RouteId =
   | 'login' | 'dashboard' | 'inventory'
   | 'movements' | 'entries' | 'exits' | 'transfers' | 'adjustments' | 'physical-count' | 'physical-count-title'
   | 'catalog' | 'products' | 'categories' | 'units' | 'suppliers'
-  | 'locations' | 'machinery' | 'traceability' | 'history' | 'authorizations'
+  | 'locations' | 'location-admin' | 'lots-admin' | 'machinery' | 'traceability' | 'history' | 'authorizations'
   | 'reports' | 'audit' | 'analytics'
   | 'administration' | 'users' | 'roles' | 'parameters'
   | 'integrations' | 'continuity' | 'alerts' | 'profile'
@@ -65,7 +66,7 @@ export interface RouteDefinition {
 
 const ALL_ROLES: readonly UserRole[] = ['admin', 'supervisor', 'warehouse'];
 const ADMIN_SUPERVISOR: readonly UserRole[] = ['admin', 'supervisor'];
-const REPORT_ROLES: readonly UserRole[] = ['admin', 'supervisor', 'warehouse'];
+const REPORT_ROLES: readonly UserRole[] = ['admin', 'supervisor'];
 const SUPPLIER_ROLES: readonly UserRole[] = ['admin', 'supervisor', 'warehouse'];
 const ALL_VIEWPORTS: readonly RouteViewport[] = ['<md', 'md+'];
 
@@ -88,7 +89,7 @@ const route = (
  */
 export const ROUTE_REGISTRY: readonly RouteDefinition[] = [
   route({ id: 'login', path: '/login', component: Login, requiredModule: null, guard: 'none', renderable: true, reachable: true, producers: ['initialState', 'logout'], roles: [], title: 'SIGA', navigationLabel: 'Login', breadcrumbs: [], status: 'demo' }),
-  route({ id: 'dashboard', path: '/dashboard', component: Dashboard, componentsByRole: { supervisor: SupervisorDashboard, warehouse: WarehouseDashboard }, requiredModule: null, guard: 'none', renderable: true, reachable: true, producers: ['login', 'Sidebar', 'MobileNav', 'breadcrumbs', 'ForbiddenPage'], roles: ALL_ROLES, title: 'Dashboard', navigationLabel: 'Dashboard', breadcrumbs: ['Dashboard'], status: 'core' }),
+  route({ id: 'dashboard', path: '/dashboard', component: Dashboard, componentsByRole: { warehouse: WarehouseDashboard }, requiredModule: null, guard: 'none', renderable: true, reachable: true, producers: ['login', 'Sidebar', 'MobileNav', 'breadcrumbs', 'ForbiddenPage'], roles: ALL_ROLES, title: 'Dashboard', navigationLabel: 'Dashboard', breadcrumbs: ['Dashboard'], status: 'core' }),
   route({ id: 'inventory', path: '/inventario', component: Inventory, requiredModule: 'inventory', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav', 'Header.search', 'Dashboard', 'WarehouseDashboard', 'Alert.actionRoute'], roles: ALL_ROLES, title: 'Inventario', navigationLabel: 'Inventario', breadcrumbs: ['Inicio', 'Inventario'], status: 'core' }),
 
   route({ id: 'movements', path: '/movimientos', component: null, requiredModule: null, guard: 'none', renderable: false, reachable: false, producers: ['Sidebar.expand'], roles: ALL_ROLES, title: 'SIGA', navigationLabel: 'Movimientos', breadcrumbs: ['Dashboard', 'Movimientos'], status: 'demo' }),
@@ -96,17 +97,17 @@ export const ROUTE_REGISTRY: readonly RouteDefinition[] = [
   route({ id: 'exits', path: '/movimientos/salidas', component: Exits, requiredModule: 'exits', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav', 'Header.search', 'Dashboard', 'WarehouseDashboard', 'Inventory'], roles: ALL_ROLES, title: 'Salidas', navigationLabel: 'Salidas', breadcrumbs: ['Dashboard', 'Movimientos', 'Salidas'], status: 'core' }),
   route({ id: 'transfers', path: '/movimientos/transferencias', component: Transfers, requiredModule: 'transfers', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav', 'Header.search', 'WarehouseDashboard', 'Inventory'], roles: ALL_ROLES, title: 'Transferencias', navigationLabel: 'Transferencias', breadcrumbs: ['Dashboard', 'Movimientos', 'Transferencias'], status: 'core' }),
   route({ id: 'adjustments', path: '/movimientos/ajustes', component: Adjustments, requiredModule: 'adjustments', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav', 'Header.search', 'SupervisorDashboard'], roles: ADMIN_SUPERVISOR, title: 'Ajustes', navigationLabel: 'Ajustes', breadcrumbs: ['Dashboard', 'Movimientos', 'Ajustes de inventario'], status: 'core' }),
-  route({ id: 'physical-count', path: '/movimientos/conteo', aliases: ['/movimientos/conteos'], component: PhysicalCount, requiredModule: 'inventory', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ALL_ROLES, title: 'SIGA', navigationLabel: 'Conteos físicos', breadcrumbs: ['Dashboard', 'Movimientos', 'Conteo Físico'], status: 'core' }),
+  route({ id: 'physical-count', path: '/movimientos/conteo', aliases: ['/movimientos/conteos'], component: PhysicalCount, requiredModule: 'counts', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ALL_ROLES, title: 'SIGA', navigationLabel: 'Conteos físicos', breadcrumbs: ['Dashboard', 'Movimientos', 'Conteo Físico'], status: 'core' }),
   route({ id: 'physical-count-title', path: '/movimientos/conteos', aliases: ['/movimientos/conteo'], component: null, requiredModule: null, requiredAction: null, guard: 'none', renderable: false, reachable: false, producers: ['Header.title-map'], roles: [], title: 'Conteos físicos', navigationLabel: 'Conteos físicos', breadcrumbs: [], status: 'demo' }),
 
   route({ id: 'catalog', path: '/catalogo', component: null, requiredModule: null, guard: 'none', renderable: false, reachable: false, producers: ['Sidebar.expand'], roles: ALL_ROLES, title: 'SIGA', navigationLabel: 'Catálogo', breadcrumbs: ['Dashboard', 'Catálogo'], status: 'demo' }),
-  route({ id: 'products', path: '/catalogo/productos', component: Products, requiredModule: 'catalogs', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ALL_ROLES, title: 'Catálogo de Productos', navigationLabel: 'Productos', breadcrumbs: ['Dashboard', 'Catálogo', 'Productos'], status: 'core' }),
-  route({ id: 'categories', path: '/catalogo/categorias', component: Categories, requiredModule: 'catalogs', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ALL_ROLES, title: 'Categorías', navigationLabel: 'Categorías', breadcrumbs: ['Dashboard', 'Catálogo', 'Categorías'], status: 'core' }),
-  route({ id: 'units', path: '/catalogo/unidades', component: Units, requiredModule: 'catalogs', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ALL_ROLES, title: 'Unidades de Medida', navigationLabel: 'Unidades de medida', breadcrumbs: ['Dashboard', 'Catálogo', 'Unidades de medida'], status: 'core' }),
+  route({ id: 'products', path: '/catalogo/productos', component: Products, requiredModule: 'products', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ALL_ROLES, title: 'Catálogo de Productos', navigationLabel: 'Productos', breadcrumbs: ['Dashboard', 'Catálogo', 'Productos'], status: 'core' }),
+  route({ id: 'categories', path: '/catalogo/categorias', component: Categories, requiredModule: 'categories', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ALL_ROLES, title: 'Categorías', navigationLabel: 'Categorías', breadcrumbs: ['Dashboard', 'Catálogo', 'Categorías'], status: 'core' }),
+  route({ id: 'units', path: '/catalogo/unidades', component: Units, requiredModule: 'units', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ALL_ROLES, title: 'Unidades de Medida', navigationLabel: 'Unidades de medida', breadcrumbs: ['Dashboard', 'Catálogo', 'Unidades de medida'], status: 'core' }),
   route({ id: 'suppliers', path: '/catalogo/proveedores', component: Suppliers, requiredModule: 'suppliers', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: SUPPLIER_ROLES, title: 'SIGA', navigationLabel: 'Proveedores', breadcrumbs: ['Dashboard', 'Catálogo', 'Proveedores'], status: 'core' }),
 
   route({ id: 'locations', path: '/ubicaciones', component: Locations, requiredModule: 'inventory', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav', 'Header.search', 'Dashboard', 'WarehouseDashboard'], roles: ALL_ROLES, title: 'Ubicaciones', navigationLabel: 'Ubicaciones', breadcrumbs: ['Dashboard', 'Ubicaciones'], status: 'core' }),
-  route({ id: 'machinery', path: '/maquinaria', component: Machinery, requiredModule: 'inventory', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav', 'Dashboard', 'WarehouseDashboard', 'Alert.actionRoute'], roles: ALL_ROLES, title: 'Maquinaria y Activos', navigationLabel: 'Maquinaria y activos', breadcrumbs: ['Dashboard', 'Maquinaria'], status: 'core' }),
+  route({ id: 'machinery', path: '/maquinaria', component: Machinery, requiredModule: 'traceabilityAdmin', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ALL_ROLES, title: 'Administración de Activos', navigationLabel: 'Activos', breadcrumbs: ['Dashboard', 'Administración', 'Activos'], status: 'core' }),
   route({ id: 'traceability', path: '/trazabilidad', aliases: ['/historial'], component: Traceability, requiredModule: 'history', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar.admin/supervisor', 'MobileNav.admin/supervisor'], roles: ALL_ROLES, title: 'Trazabilidad', navigationLabel: 'Trazabilidad', breadcrumbs: ['Dashboard', 'Trazabilidad'], status: 'core' }),
   route({ id: 'history', path: '/historial', aliases: ['/trazabilidad'], component: Traceability, requiredModule: 'history', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar.warehouse', 'MobileNav.warehouse', 'WarehouseDashboard'], roles: ALL_ROLES, title: 'SIGA', navigationLabel: 'Historial', breadcrumbs: ['Dashboard', 'Trazabilidad'], status: 'core' }),
   route({ id: 'authorizations', path: '/autorizaciones', component: Authorizations, requiredModule: 'authorizations', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav', 'Dashboard', 'SupervisorDashboard', 'Alert.actionRoute'], roles: ADMIN_SUPERVISOR, title: 'Autorizaciones', navigationLabel: 'Autorizaciones', breadcrumbs: ['Dashboard', 'Autorizaciones'], status: 'core' }),
@@ -116,7 +117,9 @@ export const ROUTE_REGISTRY: readonly RouteDefinition[] = [
 
   route({ id: 'administration', path: '/administracion', component: null, requiredModule: 'users', guard: 'module', renderable: false, reachable: false, producers: ['Sidebar.expand'], roles: ['admin'], title: 'SIGA', navigationLabel: 'Administración', breadcrumbs: ['Dashboard', 'Administración'], status: 'demo' }),
   route({ id: 'users', path: '/admin/usuarios', component: Users, requiredModule: 'users', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ['admin'], title: 'Usuarios', navigationLabel: 'Usuarios', breadcrumbs: ['Dashboard', 'Administración', 'Usuarios'], status: 'core' }),
-  route({ id: 'roles', path: '/admin/roles', component: RolesPermissions, requiredModule: 'users', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ['admin'], title: 'Roles y Permisos', navigationLabel: 'Roles y permisos', breadcrumbs: ['Dashboard', 'Administración', 'Roles y Permisos'], status: 'core' }),
+  route({ id: 'roles', path: '/admin/roles', component: RolesPermissions, requiredModule: 'roles', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ['admin'], title: 'Roles y Permisos', navigationLabel: 'Roles y permisos', breadcrumbs: ['Dashboard', 'Administración', 'Roles y Permisos'], status: 'core' }),
+  route({ id: 'location-admin', path: '/admin/ubicaciones', component: LocationAdmin, requiredModule: 'locationAdmin', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ALL_ROLES, title: 'Administración de Ubicaciones', navigationLabel: 'Administrar ubicaciones', breadcrumbs: ['Dashboard', 'Administración', 'Ubicaciones'], status: 'core' }),
+  route({ id: 'lots-admin', path: '/admin/lotes', component: LotAdmin, requiredModule: 'traceabilityAdmin', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ALL_ROLES, title: 'Administración de Lotes', navigationLabel: 'Lotes', breadcrumbs: ['Dashboard', 'Administración', 'Lotes'], status: 'core' }),
   route({ id: 'parameters', path: '/admin/parametros', component: Parameters, requiredModule: 'config', guard: 'module', renderable: true, reachable: true, producers: ['Sidebar', 'MobileNav'], roles: ['admin'], title: 'Parámetros', navigationLabel: 'Parámetros', breadcrumbs: ['Dashboard', 'Administración', 'Parámetros'], status: 'core' }),
   route({ id: 'responsibles-title', path: '/administracion/responsables', component: null, requiredModule: null, requiredAction: null, guard: 'none', renderable: false, reachable: false, producers: ['Header.title-map'], roles: [], title: 'Responsables', navigationLabel: 'Responsables', breadcrumbs: [], status: 'demo' }),
   route({ id: 'cost-centers-title', path: '/administracion/centros-costo', component: null, requiredModule: null, requiredAction: null, guard: 'none', renderable: false, reachable: false, producers: ['Header.title-map'], roles: [], title: 'Centros de Costo', navigationLabel: 'Centros de Costo', breadcrumbs: [], status: 'demo' }),

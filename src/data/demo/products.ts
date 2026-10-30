@@ -1,6 +1,15 @@
-import type { Product } from '../../domain/entities/Product';
+import type { DispatchStrategy, MachineryStatus } from '../../domain/entities/Product';
 
-export const DEMO_PRODUCTS: Product[] = [
+export interface LegacyDemoProduct {
+  id: string; sku: string; name: string; description?: string; categoryId: string;
+  type: 'material' | 'insumo' | 'repuesto' | 'maquinaria'; status: 'active' | 'inactive'; unitId: string;
+  minStock: number; requiresBatch: boolean; requiresColada: boolean; requiresExpiry: boolean;
+  requiresSerial: boolean; dispatchStrategy: DispatchStrategy; avgCost: number; sensitiveMovement: boolean;
+  reorderPoint?: number; observations?: string; image?: string; vin?: string; assetCode?: string;
+  brand?: string; model?: string; hourMeter?: number; machineryStatus?: MachineryStatus;
+}
+
+export const DEMO_PRODUCTS: LegacyDemoProduct[] = [
   // MATERIALES (20)
   { id: 'p1', sku: 'MAT-001', name: 'Plancha AR400 1/2"', description: 'Plancha de acero antiabrasivo AR400 espesor 1/2"', categoryId: 'cat2', type: 'material', status: 'active', unitId: 'un11', minStock: 10, requiresBatch: true, requiresColada: true, requiresExpiry: false, requiresSerial: false, dispatchStrategy: 'FIFO', avgCost: 1250.00, sensitiveMovement: false },
   { id: 'p2', sku: 'MAT-002', name: 'Plancha ASTM A36 3/8"', description: 'Plancha de acero estructural ASTM A36 espesor 3/8"', categoryId: 'cat1', type: 'material', status: 'active', unitId: 'un11', minStock: 15, requiresBatch: true, requiresColada: false, requiresExpiry: false, requiresSerial: false, dispatchStrategy: 'FIFO', avgCost: 820.00, sensitiveMovement: false },

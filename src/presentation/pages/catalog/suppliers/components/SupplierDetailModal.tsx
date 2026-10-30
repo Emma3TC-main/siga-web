@@ -15,30 +15,30 @@ export function SupplierDetailModal({ detail, movements, canEdit, onClose, onEdi
   const receipts = detail ? movements.filter(m => m.supplierId === detail.id || m.supplierSnapshot?.id === detail.id) : [];
 
   return (
-    <Modal open={!!detail} onClose={onClose} title={detail?.name ?? ''} size="md">
+    <Modal open={!!detail} onClose={onClose} title={detail?.businessName ?? ''} size="md">
       {detail && (
         <div className="space-y-5">
           <DetailHeader
             eyebrow={detail.code}
-            title={detail.name}
-            badges={<Badge variant={detail.status === 'active' ? 'success' : 'muted'} dot>{detail.status === 'active' ? 'Activo' : 'Inactivo'}</Badge>}
+            title={detail.businessName}
+            badges={<Badge variant={detail.active ? 'success' : 'muted'} dot>{detail.active ? 'Activo' : 'Inactivo'}</Badge>}
           />
 
           <DetailSection title="Información general">
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <DetailField label="Razón social" value={detail.name} />
-              <DetailField label="Nombre comercial" value={detail.commercialName || '—'} />
-              <DetailField label="RUC" value={detail.ruc} />
-              <DetailField label="Registrado" value={detail.createdAt} />
-              <DetailField label="Dirección" value={detail.address} className="col-span-2" />
+              <DetailField label="Razón social" value={detail.businessName} />
+              <DetailField label="Nombre comercial" value={detail.tradeName || '—'} />
+              <DetailField label="RUC / Identificador" value={detail.taxId} />
+              <DetailField label="Versión" value={String(detail.version)} />
+              <DetailField label="Dirección" value={detail.address || '—'} className="col-span-2" />
             </div>
           </DetailSection>
 
           <DetailSection title="Contacto">
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <DetailField label="Contacto" value={detail.contact} />
-              <DetailField label="Teléfono" value={detail.phone} />
-              <DetailField label="Correo" value={detail.email} className="col-span-2" />
+              <DetailField label="Contacto" value={detail.contactName || '—'} />
+              <DetailField label="Teléfono" value={detail.phone || '—'} />
+              <DetailField label="Correo" value={detail.email || '—'} className="col-span-2" />
             </div>
           </DetailSection>
 
@@ -65,10 +65,10 @@ export function SupplierDetailModal({ detail, movements, canEdit, onClose, onEdi
             {canEdit && (
               <Button
                 size="sm"
-                variant={detail.status === 'active' ? 'outline' : 'primary'}
+                variant={detail.active ? 'outline' : 'primary'}
                 onClick={() => onRequestToggleStatus(detail.id)}
               >
-                {detail.status === 'active' ? 'Desactivar' : 'Activar'}
+                {detail.active ? 'Desactivar' : 'Activar'}
               </Button>
             )}
             <Button size="sm" onClick={onClose}>Cerrar</Button>

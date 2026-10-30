@@ -5,6 +5,6 @@ export class GetPhysicalCounts {
   constructor(private readonly repository: PhysicalCountRepository) {}
 
   execute(): Promise<PhysicalCount[]> {
-    return this.repository.getAll();
+    return this.repository.listCounts(0, 20).then(page => page.content);
   }
 }

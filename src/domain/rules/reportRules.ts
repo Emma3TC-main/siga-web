@@ -30,7 +30,7 @@ export function buildInventoryReport(
         qty,
         cat: categories.find(category => category.id === product.categoryId),
         unit: units.find(unit => unit.id === product.unitId),
-        valuation: qty * product.avgCost,
+        valuation: qty * (product.avgCost ?? 0),
       };
     })
     .filter(row => !categoryId || row.categoryId === categoryId);

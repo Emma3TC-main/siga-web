@@ -18,6 +18,12 @@ export class DemoMovementRepository implements MovementRepository {
     return movement;
   }
 
+  async submit(id: string): Promise<Movement> {
+    const movement = this.movements.find(item => item.id === id);
+    if (!movement) throw new Error(`Movimiento ${id} no encontrado.`);
+    return movement;
+  }
+
   async update(movement: Movement): Promise<Movement> {
     this.movements = this.movements.map(item => (item.id === movement.id ? movement : item));
     return movement;

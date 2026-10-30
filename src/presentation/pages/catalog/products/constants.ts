@@ -1,36 +1,45 @@
-import type { ProductType } from '../../../../domain/entities/Product';
+import type { Product, ProductType, ProductUnitConversion } from '../../../../domain/entities/Product';
 
 export const TYPE_LABELS: Record<ProductType, string> = {
-  material: 'Material', insumo: 'Insumo', repuesto: 'Repuesto', maquinaria: 'Maquinaria',
+  MATERIAL: 'Material', INSUMO: 'Insumo', REPUESTO: 'Repuesto', MAQUINARIA: 'Maquinaria',
 };
 
 export interface ProductFormData {
-  name: string;
   sku: string;
-  type: ProductType;
+  name: string;
   categoryId: string;
-  unitId: string;
-  description: string;
+  productType: ProductType;
+  storageUnitId: string;
+  baseUnitId: string;
   minStock: number;
-  reorderPoint: number;
-  avgCost: number;
-  sensitiveMovement: boolean;
-  requiresBatch: boolean;
-  requiresSerial: boolean;
+  requiresLot: boolean;
+  requiresHeatNumber: boolean;
   requiresExpiry: boolean;
-  requiresColada: boolean;
+  requiresSerial: boolean;
+  technicalAttributesText: string;
+  conversions: ProductUnitConversion[];
 }
 
 export const EMPTY_PRODUCT_FORM: ProductFormData = {
-  name: '', sku: '', type: 'material', categoryId: '', unitId: '', description: '',
-  minStock: 0, reorderPoint: 0, avgCost: 0,
-  sensitiveMovement: false, requiresBatch: false, requiresSerial: false, requiresExpiry: false, requiresColada: false,
+  sku: '', name: '', categoryId: '', productType: 'MATERIAL', storageUnitId: '', baseUnitId: '',
+  minStock: 0, requiresLot: false, requiresHeatNumber: false, requiresExpiry: false,
+  requiresSerial: false, technicalAttributesText: '{}', conversions: [],
 };
 
-export const PRODUCT_FLAGS: { key: keyof ProductFormData; label: string }[] = [
-  { key: 'sensitiveMovement', label: 'Movimiento sensible (requiere autorización)' },
-  { key: 'requiresBatch', label: 'Requiere número de lote' },
-  { key: 'requiresSerial', label: 'Requiere número de serie' },
-  { key: 'requiresExpiry', label: 'Requiere fecha de vencimiento' },
-  { key: 'requiresColada', label: 'Requiere número de colada' },
+export const PRODUCT_FLAGS: { key: 'requiresLot' | 'requiresHeatNumber' | 'requiresExpiry' | 'requiresSerial'; label: string }[] = [
+  { key: 'requiresLot', label: 'Requiere lote' },
+  { key: 'requiresHeatNumber', label: 'Requiere número de colada' },
+  { key: 'requiresExpiry', label: 'Requiere vencimiento' },
+  { key: 'requiresSerial', label: 'Requiere serie' },
 ];
+
+export function formFromProduct(product: Product): ProductFormData {
+  return {
+    sku: product.sku, name: product.name, categoryId: product.categoryId, productType: product.productType,
+    storageUnitId: product.storageUnitId, baseUnitId: product.baseUnitId, minStock: product.minStock,
+    requiresLot: product.requiresLot, requiresHeatNumber: product.requiresHeatNumber,
+    requiresExpiry: product.requiresExpiry, requiresSerial: product.requiresSerial,
+    technicalAttributesText: JSON.stringify(product.technicalAttributes, null, 2),
+    conversions: product.conversions.map(conversion => ({ ...conversion })),
+  };
+}

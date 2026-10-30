@@ -2,11 +2,9 @@ export interface UnitOfMeasure {
   id: string;
   code: string;
   name: string;
-  group: string;
-  isBase: boolean;
-  baseUnitId?: string;
-  conversionFactor?: number;
+  symbol: string;
+  dimension: string;
+  active: boolean;
 }
 
-/** `id` lo asigna la fuente de datos. */
-export type NewUnitOfMeasure = Omit<UnitOfMeasure, 'id'>;
+export type CreateUnitCommand = Pick<UnitOfMeasure, 'code' | 'name' | 'symbol' | 'dimension'>;

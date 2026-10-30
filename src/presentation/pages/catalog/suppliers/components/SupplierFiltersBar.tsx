@@ -1,13 +1,16 @@
 import { SearchIcon } from '../../../../components/ui';
+import type { SupplierSort } from '../../../../../domain/entities/Supplier';
 
 interface SupplierFiltersBarProps {
   search: string;
   onSearchChange: (value: string) => void;
   filterStatus: 'all' | 'active' | 'inactive';
   onFilterStatusChange: (value: 'all' | 'active' | 'inactive') => void;
+  sort: SupplierSort;
+  onSortChange: (value: SupplierSort) => void;
 }
 
-export function SupplierFiltersBar({ search, onSearchChange, filterStatus, onFilterStatusChange }: SupplierFiltersBarProps) {
+export function SupplierFiltersBar({ search, onSearchChange, filterStatus, onFilterStatusChange, sort, onSortChange }: SupplierFiltersBarProps) {
   return (
     <div className="flex gap-3 px-6 py-3 border-b border-gray-200 bg-white flex-wrap">
       <div className="relative flex-1 min-w-48">
@@ -27,6 +30,17 @@ export function SupplierFiltersBar({ search, onSearchChange, filterStatus, onFil
         <option value="all">Todos los estados</option>
         <option value="active">Activos</option>
         <option value="inactive">Inactivos</option>
+      </select>
+      <select
+        aria-label="Orden de proveedores"
+        value={sort}
+        onChange={event => onSortChange(event.target.value as SupplierSort)}
+        className="siga-select w-48 h-8 text-xs"
+      >
+        <option value="code,asc">Código A–Z</option>
+        <option value="code,desc">Código Z–A</option>
+        <option value="businessName,asc">Razón social A–Z</option>
+        <option value="businessName,desc">Razón social Z–A</option>
       </select>
     </div>
   );

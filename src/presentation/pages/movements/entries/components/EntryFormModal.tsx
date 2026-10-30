@@ -13,10 +13,10 @@ export interface EntryFormModalProps {
 export function EntryFormModal({ form }: EntryFormModalProps) {
   const {
     showForm, closeForm, step, setStep, loading, networkOnline,
-    header, setHeader, lines, addLine, removeLine, updateLine, selectLineProduct, isLineValid,
+    header, setHeader, lines, addLine, removeLine, updateLine, selectLineProduct, isLineValid, traceabilityBlockReason,
     isExternalReceipt, toggleExternalReceipt, supplierId, selectSupplier, setSupplierPickerOpen,
-    activeSuppliers, evidenceAdded, setEvidenceAdded, totalCost, hasSensitiveLine,
-    canContinue, handleSubmit,
+    activeSuppliers, evidenceAdded, evidenceFile, setEvidenceFile, totalCost, hasSensitiveLine,
+    canContinue, handleSubmit, pendingEvidenceOwnerId,
   } = form;
 
   return (
@@ -71,6 +71,7 @@ export function EntryFormModal({ form }: EntryFormModalProps) {
           <EntryLineItemsStep
             lines={lines}
             isLineValid={isLineValid}
+            traceabilityBlockReason={traceabilityBlockReason}
             onAddLine={addLine}
             onRemoveLine={removeLine}
             onSelectProduct={selectLineProduct}
@@ -82,7 +83,8 @@ export function EntryFormModal({ form }: EntryFormModalProps) {
         {step === 2 && (
           <EntryEvidenceStep
             evidenceAdded={evidenceAdded}
-            onAddEvidence={() => setEvidenceAdded(true)}
+            file={evidenceFile}
+            onSelectFile={setEvidenceFile}
           />
         )}
 
@@ -153,7 +155,9 @@ export function EntryFormModal({ form }: EntryFormModalProps) {
             >
               {networkOnline
                 ? (
-                    hasSensitiveLine
+                    pendingEvidenceOwnerId
+                      ? 'Reintentar carga de evidencia'
+                      : hasSensitiveLine
                       ? 'Enviar a autorización'
                       : 'Confirmar entrada'
                   )

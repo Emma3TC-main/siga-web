@@ -1,8 +1,14 @@
-import type { NewSupplier, Supplier } from '../entities/Supplier';
+import type {
+  Supplier,
+  SupplierDraft,
+  SupplierListQuery,
+  SupplierPage,
+  UpdateSupplierCommand,
+} from '../entities/Supplier';
 
 export interface SupplierRepository {
-  getAll(): Promise<Supplier[]>;
+  list(query: SupplierListQuery): Promise<SupplierPage>;
   getById(id: string): Promise<Supplier | null>;
-  create(supplier: NewSupplier): Promise<Supplier>;
-  update(supplier: Supplier): Promise<Supplier>;
+  create(command: SupplierDraft): Promise<Supplier>;
+  update(id: string, command: UpdateSupplierCommand): Promise<Supplier>;
 }

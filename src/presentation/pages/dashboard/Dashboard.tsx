@@ -1,81 +1,52 @@
 import { useState } from 'react';
+import { ApiError } from '../../../infrastructure/http/ApiClient';
+import { getErrorMessage } from '../../../shared/errors/getErrorMessage';
+import { useReportingDashboard } from '../../hooks/useReportingDashboard';
 import { useApp } from '../../state/AppContext';
-import { actionRoutePath, routePath } from '../../navigation/routeRegistry';
-import { useDashboardMetrics } from './hooks/useDashboardMetrics';
+import { Spinner } from '../../components/ui';
 import { DashboardHeader } from './components/DashboardHeader';
 import { KpiSummaryGrid } from './components/KpiSummaryGrid';
 import { MovementTrendChart } from './components/MovementTrendChart';
-import { CategoryDistributionChart } from './components/CategoryDistributionChart';
-import { CriticalAlertsPanel } from './components/CriticalAlertsPanel';
-import { RecentMovementsPanel } from './components/RecentMovementsPanel';
-import { MachineryStatusPanel } from './components/MachineryStatusPanel';
-import { LocationStockChart } from './components/LocationStockChart';
-import type { Alert } from '../../../domain/entities/Alert';
+import { CriticalProductsPanel } from './components/CriticalProductsPanel';
+import type { DashboardRange } from '../reports/reportingDates';
 
 export default function Dashboard() {
-  const { navigate } = useApp();
-  const [selectedPeriod, setSelectedPeriod] = useState('agosto');
-  const {
-    currentUser, totalStock, machinery, operativeMachinery, machineryAvailability,
-    belowMin, zeroStock, expirySoon, entriesThisPeriod, exitsThisPeriod, pendingAuthorizations,
-    recentMovements, criticalAlerts, warningAlerts, markAlertRead,
-  } = useDashboardMetrics();
+  const { state } = useApp();
+  const [range, setRange] = useState<DashboardRange>('LAST_30_DAYS');
+  const { data, loading, error } = useReportingDashboard(range);
 
-  function handleAlertClick(alert: Alert) {
-    markAlertRead(alert.id);
-    if (alert.actionRoute) navigate(actionRoutePath(alert.actionRoute));
+  if (loading) {
+    return <div className="h-full flex items-center justify-center gap-3 text-sm text-gray-500"><Spinner size={20} />Cargando indicadores…</div>;
   }
+
+  if (error) {
+    const forbidden = error instanceof ApiError && error.status === 403;
+    return (
+      <div className="p-6">
+        <div className="siga-card p-6 border-red-200">
+          <h1 className="font-semibold text-[#093C5D]">{forbidden ? 'Acceso restringido' : 'No se pudo cargar Reporting'}</h1>
+          <p className="text-sm text-gray-500 mt-2">{forbidden ? 'Tu sesión no posee REPORT_READ.' : getErrorMessage(error)}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
 
   return (
     <div className="p-6 space-y-5">
       <DashboardHeader
-        userName={currentUser?.name}
-        role={currentUser?.role}
-        period={selectedPeriod}
-        onPeriodChange={setSelectedPeriod}
+        userName={state.currentUser?.name}
+        role={state.currentUser?.role}
+        range={range}
+        onRangeChange={setRange}
+        dataUpdatedAt={data.dataUpdatedAt}
       />
-
-      <KpiSummaryGrid
-        totalStock={totalStock}
-        machineryAvailability={machineryAvailability}
-        operativeMachinery={operativeMachinery}
-        totalMachinery={machinery.length}
-        belowMin={belowMin}
-        zeroStock={zeroStock}
-        expirySoon={expirySoon}
-        entriesThisPeriod={entriesThisPeriod}
-        exitsThisPeriod={exitsThisPeriod}
-        pendingAuthorizations={pendingAuthorizations}
-        onNavigate={navigate}
-      />
-
-      {/* Charts row */}
+      <KpiSummaryGrid dashboard={data} />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <MovementTrendChart />
-        <CategoryDistributionChart />
+        <MovementTrendChart data={data.movementTrend} />
+        <CriticalProductsPanel products={data.topCriticalProducts} />
       </div>
-
-      {/* Bottom row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <CriticalAlertsPanel
-          criticalAlerts={criticalAlerts}
-          warningAlerts={warningAlerts}
-          onAlertClick={handleAlertClick}
-          onViewAll={() => navigate(routePath('alerts'))}
-        />
-        <RecentMovementsPanel
-          movements={recentMovements}
-          onViewAll={() => navigate(routePath('entries'))}
-        />
-        <MachineryStatusPanel
-          machinery={machinery}
-          machineryAvailability={machineryAvailability}
-          onSelectMachinery={() => navigate(routePath('machinery'))}
-          onViewAll={() => navigate(routePath('machinery'))}
-        />
-      </div>
-
-      <LocationStockChart onViewDetail={() => navigate(routePath('locations'))} />
     </div>
   );
 }

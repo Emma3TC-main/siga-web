@@ -8,6 +8,9 @@ export interface User {
   email: string;
   phone?: string;
   role: UserRole;
+  permissions?: string[];
+  /** Instante de autenticación MFA del JWT, en segundos Unix. */
+  authTime?: number;
   status: 'active' | 'inactive';
   scope?: string;
   createdAt: string;

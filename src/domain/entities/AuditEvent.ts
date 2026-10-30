@@ -6,10 +6,16 @@ export interface AuditEvent {
   action: string;
   module: string;
   object: string;
-  result: 'success' | 'warning' | 'error';
+  result: string;
   ip: string;
   description: string;
   details?: Record<string, unknown>;
+  eventType?: string;
+  actorId?: string | null;
+  aggregateType?: string | null;
+  aggregateId?: string | null;
+  correlationId?: string | null;
+  occurredAt?: string;
 }
 
 /** Datos que aporta quien registra el evento. `id`, fecha, hora e IP los asigna la fuente de datos. */

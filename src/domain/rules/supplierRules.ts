@@ -1,30 +1,26 @@
-import type { Supplier, SupplierDraft } from '../entities/Supplier';
+import type { SupplierDraft } from '../entities/Supplier';
 
-/** Validación de alta/edición de proveedor. Devuelve un mensaje por campo inválido. */
-export function validateSupplierDraft(
-  draft: SupplierDraft,
-  existing: readonly Supplier[],
-  editingId?: string,
-): Record<string, string> {
-  const errs: Record<string, string> = {};
-  if (!draft.code.trim()) errs.code = 'Código requerido.';
-  if (!draft.ruc.trim()) errs.ruc = 'RUC requerido.';
-  else if (!/^\d{8,15}$/.test(draft.ruc.trim())) errs.ruc = 'RUC debe tener entre 8 y 15 dígitos.';
-  if (!draft.name.trim()) errs.name = 'Razón social requerida.';
-  if (!draft.contact.trim()) errs.contact = 'Nombre de contacto requerido.';
-  if (!draft.phone.trim()) errs.phone = 'Teléfono requerido.';
-  if (!draft.email.trim()) errs.email = 'Correo requerido.';
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) errs.email = 'Formato de correo inválido.';
-  if (!draft.address.trim()) errs.address = 'Dirección requerida.';
-  // Duplicate checks
-  const dup = existing.find(s => s.id !== editingId && s.ruc === draft.ruc.trim());
-  if (dup) errs.ruc = `RUC ya registrado (${dup.name}).`;
-  const dupCode = existing.find(s => s.id !== editingId && s.code === draft.code.trim());
-  if (dupCode) errs.code = `Código ya registrado (${dupCode.name}).`;
-  return errs;
-}
+/** Validación UX alineada con los límites publicados por Catalog. */
+export function validateSupplierDraft(draft: SupplierDraft): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const required = (value: string, field: keyof SupplierDraft, label: string, maximum: number) => {
+    if (!value.trim()) errors[field] = `${label} requerido.`;
+    else if (value.length > maximum) errors[field] = `${label} no puede superar ${maximum} caracteres.`;
+  };
+  const optional = (value: string, field: keyof SupplierDraft, label: string, maximum: number) => {
+    if (value.length > maximum) errors[field] = `${label} no puede superar ${maximum} caracteres.`;
+  };
 
-/** Código sugerido para el siguiente proveedor: PROV-001, PROV-002… */
-export function suggestSupplierCode(existing: readonly Supplier[]): string {
-  return `PROV-${String(existing.length + 1).padStart(3, '0')}`;
+  required(draft.code, 'code', 'Código', 50);
+  required(draft.taxId, 'taxId', 'Identificador tributario', 20);
+  required(draft.businessName, 'businessName', 'Razón social', 200);
+  optional(draft.tradeName, 'tradeName', 'Nombre comercial', 200);
+  optional(draft.contactName, 'contactName', 'Contacto', 160);
+  optional(draft.phone, 'phone', 'Teléfono', 40);
+  optional(draft.email, 'email', 'Correo', 254);
+  optional(draft.address, 'address', 'Dirección', 300);
+  if (draft.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) {
+    errors.email = 'Formato de correo inválido.';
+  }
+  return errors;
 }

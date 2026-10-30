@@ -4,23 +4,47 @@ import { useStock } from '../../../../hooks/useStock';
 import { useUnits } from '../../../../hooks/useUnits';
 import { Input, Select, TrashIcon, formatCurrency, formatNumber } from '../../../../components/ui';
 import type { DraftLine } from '../hooks/useEntryForm';
+import { useTraceabilityOptions } from '../../hooks/useTraceabilityOptions';
+import { movementUnitContract } from '../../../../../domain/rules/movementRules';
 
 export interface EntryLineItemCardProps {
   line: DraftLine;
   index: number;
   isValid: boolean;
+  traceabilityBlockReason: string | null;
   canRemove: boolean;
   onRemove: () => void;
   onSelectProduct: (productId: string) => void;
   onUpdate: (patch: Partial<DraftLine>) => void;
 }
 
-export function EntryLineItemCard({ line, index, isValid, canRemove, onRemove, onSelectProduct, onUpdate }: EntryLineItemCardProps) {
+export function EntryLineItemCard({ line, index, isValid, traceabilityBlockReason, canRemove, onRemove, onSelectProduct, onUpdate }: EntryLineItemCardProps) {
   const { products } = useProducts();
-  const { locations } = useLocations();
+  const { locations, loading: locationsLoading, error: locationsError } = useLocations();
   const { units } = useUnits();
   const { stock } = useStock();
   const product = products.find(item => item.id === line.productId);
+  const unitContract = product ? movementUnitContract(product) : null;
+  const compatibleUnits = units.filter(item => unitContract?.validUnitIds.has(item.id));
+  const baseUnit = compatibleUnits.find(item => item.id === unitContract?.baseUnitId);
+  const alternateUnits = compatibleUnits.filter(item => item.id !== unitContract?.baseUnitId);
+  const unitError = product && compatibleUnits.length === 0
+    ? 'No hay unidades de medida configuradas para este producto.'
+    : product && line.unitId && !unitContract?.validUnitIds.has(line.unitId)
+      ? 'Selecciona una unidad compatible con el producto.'
+      : undefined;
+  const unitHint = product && compatibleUnits.length > 0
+    ? `Unidad base: ${baseUnit?.code ?? 'no disponible'}${alternateUnits.length > 0 ? ` · También disponible: ${alternateUnits.map(item => item.code).join(', ')}` : ''}`
+    : undefined;
+  const requiresLot = Boolean(product?.requiresBatch || product?.requiresColada || product?.requiresExpiry);
+
+  const { lots, assets, loadingLots, loadingAssets, lotsError, assetsError } = useTraceabilityOptions({
+    productId: line.productId,
+    locationId: line.locationId,
+    isOutbound: false,
+    requiresLot,
+    requiresAsset: Boolean(product?.requiresSerial)
+  });
 
 return (
   <section
@@ -136,6 +160,9 @@ return (
           <Select
             label="Unidad *"
             value={line.unitId}
+            disabled={!product || compatibleUnits.length === 0}
+            error={unitError}
+            hint={unitHint}
             onChange={event =>
               onUpdate({
                 unitId: event.target.value
@@ -143,7 +170,9 @@ return (
             }
           >
 
-            {units.map(item => (
+            <option value="">Seleccione…</option>
+
+            {compatibleUnits.map(item => (
 
               <option
                 key={item.id}
@@ -184,6 +213,8 @@ return (
         <Select
           label="Ubicación destino *"
           value={line.locationId}
+          disabled={locationsLoading || Boolean(locationsError) || locations.length === 0}
+          error={locationsError ?? (!locationsLoading && locations.length === 0 ? 'No hay ubicaciones activas disponibles.' : undefined)}
           onChange={event =>
             onUpdate({
               locationId: event.target.value
@@ -192,7 +223,7 @@ return (
         >
 
           <option value="">
-            Seleccione…
+            {locationsLoading ? 'Cargando ubicaciones…' : 'Seleccione…'}
           </option>
 
           {locations
@@ -211,52 +242,78 @@ return (
         </Select>
 
 
-        {product?.requiresBatch && (
-
-          <Input
+        {requiresLot && (
+          <Select
             label="Lote / Colada *"
             value={line.batch}
-            onChange={event =>
+            disabled={loadingLots || Boolean(lotsError) || lots.length === 0}
+            error={lotsError ?? (!loadingLots && lots.length === 0 ? 'No hay trazabilidad preexistente disponible' : undefined)}
+            onChange={event => {
+              const selectedLot = lots.find(l => l.id === event.target.value);
               onUpdate({
-                batch: event.target.value
-              })
-            }
-          />
-
+                batch: event.target.value,
+                lotSource: selectedLot?.source,
+                expiryDate: selectedLot?.expiresAt?.split('T')[0] || ''
+              });
+            }}
+          >
+            <option value="">{loadingLots ? 'Cargando lotes...' : 'Seleccione...'}</option>
+            {lots.map(lot => (
+              <option key={lot.id} value={lot.id}>
+                {lot.lotNumber ?? 'Sin número'}
+              </option>
+            ))}
+          </Select>
         )}
 
 
         {product?.requiresSerial && (
-
-          <Input
+          <Select
             label="Serie *"
             value={line.serial}
-            onChange={event =>
-              onUpdate({
-                serial: event.target.value
-              })
+            disabled={loadingAssets || Boolean(assetsError) || assets.length === 0 || Number(line.quantity) !== 1}
+            error={
+              Number(line.quantity) !== 1
+                ? 'La cantidad debe ser 1'
+                : assetsError ?? (!loadingAssets && assets.length === 0 ? 'No hay trazabilidad preexistente disponible' : undefined)
             }
-          />
-
+            onChange={event => {
+              const selectedAsset = assets.find(asset => asset.id === event.target.value);
+              onUpdate({
+                serial: event.target.value,
+                assetSource: selectedAsset?.source,
+              });
+            }}
+          >
+            <option value="">{loadingAssets ? 'Cargando series...' : 'Seleccione...'}</option>
+            {assets.map(asset => (
+              <option key={asset.id} value={asset.id}>
+                {asset.serialNumber}
+              </option>
+            ))}
+          </Select>
         )}
 
 
         {product?.requiresExpiry && (
-
           <Input
             label="Vencimiento *"
             type="date"
             value={line.expiryDate}
+            readOnly={requiresLot}
             onChange={event =>
               onUpdate({
                 expiryDate: event.target.value
               })
             }
           />
-
         )}
 
       </div>
+
+      {traceabilityBlockReason && (
+        <div className="mt-3 text-xs font-medium text-red-600">{traceabilityBlockReason}</div>
+      )}
 
     </div>
 
@@ -300,7 +357,7 @@ return (
               Number(line.quantity || 0) *
               (
                 Number(line.unitCost) ||
-                product.avgCost
+                (product.avgCost ?? 0)
               )
             )}
           </strong>

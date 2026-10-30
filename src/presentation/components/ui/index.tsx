@@ -137,9 +137,10 @@ export function Input({ label, error, hint, icon, className = '', ...props }: In
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string;
+  hint?: string;
 }
 
-export function Select({ label, error, children, className = '', ...props }: SelectProps) {
+export function Select({ label, error, hint, children, className = '', ...props }: SelectProps) {
   const generatedId = useId();
   const selectId = props.id ?? generatedId;
   return (
@@ -149,6 +150,7 @@ export function Select({ label, error, children, className = '', ...props }: Sel
         {children}
       </select>
       {error && <span className="text-xs text-red-600">{error}</span>}
+      {hint && !error && <span className="text-xs text-gray-400">{hint}</span>}
     </div>
   );
 }

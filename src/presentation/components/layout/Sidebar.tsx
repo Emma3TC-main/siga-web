@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../state/AppContext';
 import { useAuthorizations } from '../../hooks/useAuthorizations';
-import { hasAnyPermission } from '../../../domain/rules/permissionRules';
+import { hasUserPermission } from '../../../domain/rules/permissionRules';
 import { getRouteById, routePath, type RouteId } from '../../navigation/routeRegistry';
 import {
   HomeIcon, PackageIcon, ArrowDownIcon, ArrowUpIcon, ArrowsIcon, AdjustIcon, ClipboardIcon,
@@ -34,11 +34,11 @@ function navItem(routeId: RouteId, icon: React.ReactNode, options: Partial<NavIt
 
 export default function Sidebar() {
   const { state, navigate, toggleSidebar } = useApp();
-  const { activeRoute, sidebarCollapsed, alerts, currentUser } = state;
+  const { activeRoute, sidebarCollapsed, unreadNotificationCount, currentUser } = state;
   const { authorizations } = useAuthorizations();
   const [expandedItems, setExpandedItems] = useState<string[]>(['movimientos']);
 
-  const unreadAlerts = alerts.filter(a => !a.read).length;
+  const unreadAlerts = unreadNotificationCount ?? 0;
   const pendingAuth = authorizations.filter(a => a.status === 'pendiente').length;
 
   const navItems: NavItem[] = [
@@ -64,7 +64,6 @@ export default function Sidebar() {
       ],
     }),
     navItem('locations', <MapPinIcon size={18} />, { id: 'ubicaciones' }),
-    navItem('machinery', <TruckIcon size={18} />, { id: 'maquinaria' }),
     navItem('traceability', <EyeIcon size={18} />, { id: 'trazabilidad' }),
     navItem('history', <ClipboardIcon size={18} />, { id: 'historial' }),
     navItem('authorizations', <ShieldIcon size={18} />, { id: 'autorizaciones', badge: pendingAuth }),
@@ -76,14 +75,18 @@ export default function Sidebar() {
       children: [
         navItem('users', <UsersIcon size={16} />, { id: 'usuarios' }),
         navItem('roles', <ShieldIcon size={16} />, { id: 'roles' }),
+        navItem('location-admin', <MapPinIcon size={16} />, { id: 'administrar-ubicaciones' }),
+        navItem('lots-admin', <PackageIcon size={16} />, { id: 'administrar-lotes' }),
+        navItem('machinery', <TruckIcon size={16} />, { id: 'administrar-activos' }),
         navItem('parameters', <SettingsIcon size={16} />, { id: 'parametros' }),
       ],
     }),
   ];
 
   function hasAccess(item: NavItem): boolean {
+    if (item.children) return item.children.some(child => hasAccess(child));
     if (!item.requiredModule) return true;
-    return hasAnyPermission(currentUser?.role, item.requiredModule);
+    return hasUserPermission(currentUser, item.requiredModule);
   }
 
   function toggleExpand(id: string) {

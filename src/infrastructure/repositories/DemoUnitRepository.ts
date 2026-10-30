@@ -1,4 +1,4 @@
-import type { NewUnitOfMeasure, UnitOfMeasure } from '../../domain/entities/UnitOfMeasure';
+import type { CreateUnitCommand, UnitOfMeasure } from '../../domain/entities/UnitOfMeasure';
 import type { UnitRepository } from '../../domain/repositories/UnitRepository';
 import { DEMO_UNITS } from '../../data/demo/units';
 
@@ -9,8 +9,8 @@ export class DemoUnitRepository implements UnitRepository {
     return [...this.units];
   }
 
-  async create(input: NewUnitOfMeasure): Promise<UnitOfMeasure> {
-    const unit: UnitOfMeasure = { ...input, id: `un-${Date.now()}` };
+  async create(input: CreateUnitCommand): Promise<UnitOfMeasure> {
+    const unit: UnitOfMeasure = { ...input, id: `un-${Date.now()}`, active: true };
     this.units = [...this.units, unit];
     return unit;
   }
