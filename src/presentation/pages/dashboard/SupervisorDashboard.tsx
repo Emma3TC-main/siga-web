@@ -27,7 +27,7 @@ export default function SupervisorDashboard() {
   const unreadAlerts = alerts.filter(a => a.readAt === null);
   const criticalAlerts = unreadAlerts.filter(a => a.severity === 'CRITICAL');
   const inventoryValue = stock.reduce((t, s) => t + s.quantity * s.avgCost, 0);
-  const totalProducts = products.filter(p => p.status === 'active').length;
+  const totalProducts = products.filter(p => p.active).length;
   const lowStock = products.filter(p => {
     const qty = stock.filter(s => s.productId === p.id).reduce((t, s) => t + s.quantity, 0);
     return qty <= p.minStock && qty > 0;

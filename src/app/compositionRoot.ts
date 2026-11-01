@@ -95,8 +95,8 @@ const locationAdminRepository = MODE === 'REMOTE'
   ? new ApiLocationAdminRepository()
   : new DemoLocationAdminRepository();
 export const locationAdminUseCases = new LocationAdminUseCases(locationAdminRepository);
-const costCenterRepository = new DemoCostCenterRepository();
-const responsibleRepository = new DemoResponsibleRepository();
+const costCenterRepository = MODE === 'REMOTE' ? null : new DemoCostCenterRepository();
+const responsibleRepository = MODE === 'REMOTE' ? null : new DemoResponsibleRepository();
 
 export const lotRepository = MODE === 'REMOTE' ? new ApiLotRepository() : new DemoLotRepository();
 export const assetRepository = MODE === 'REMOTE' ? new ApiAssetRepository() : new DemoAssetRepository();
@@ -116,8 +116,8 @@ export const catalogUseCases: CatalogUseCases = {
   getUnits: new GetUnits(unitRepository),
   createUnit: new CreateUnit(unitRepository),
   getLocations: new GetLocations(locationRepository),
-  getCostCenters: new GetCostCenters(costCenterRepository),
-  getResponsibles: new GetResponsibles(responsibleRepository),
+  ...(costCenterRepository ? { getCostCenters: new GetCostCenters(costCenterRepository) } : {}),
+  ...(responsibleRepository ? { getResponsibles: new GetResponsibles(responsibleRepository) } : {}),
   getSuppliers: new GetSuppliers(supplierRepository),
   getSupplier: new GetSupplier(supplierRepository),
   createSupplier: new CreateSupplier(supplierRepository),

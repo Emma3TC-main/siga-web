@@ -228,10 +228,12 @@ return (
     </div>
 
 
+    {(responsibles.length > 0 || costCenters.length > 0) && (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
+        {responsibles.length > 0 && (
         <Select
           label="Responsable"
           value={header.requesterId}
@@ -257,8 +259,10 @@ return (
           ))}
 
         </Select>
+        )}
 
 
+        {costCenters.length > 0 && (
         <Select
           label="Centro de costo"
           value={header.costCenterId}
@@ -284,10 +288,12 @@ return (
           ))}
 
         </Select>
+        )}
 
       </div>
 
     </div>
+    )}
 
 
     <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">

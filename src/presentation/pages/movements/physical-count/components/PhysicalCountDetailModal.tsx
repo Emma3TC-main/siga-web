@@ -9,6 +9,7 @@ import type {
 } from '../../../../../domain/entities/PhysicalCount';
 import { adjustmentCandidate } from '../../../../../domain/entities/PhysicalCount';
 import type { Product } from '../../../../../domain/entities/Product';
+import { isActiveProduct, isInventoryProduct, productStorageUnitId, requiresLotIdentity } from '../../../../../domain/rules/productRules';
 import type { UnitOfMeasure } from '../../../../../domain/entities/UnitOfMeasure';
 import type { Location } from '../../../../../domain/entities/Location';
 import { useTraceabilityOptions } from '../../hooks/useTraceabilityOptions';
@@ -129,7 +130,7 @@ export function PhysicalCountDetailModal(props: Props) {
               <tbody>
                 {detail.lines.map(line => {
                   const product = products.find(candidate => candidate.id === line.productId);
-                  const unit = product ? units.find(candidate => candidate.id === product.unitId) : undefined;
+                  const unit = product ? units.find(candidate => candidate.id === productStorageUnitId(product)) : undefined;
                   return (
                     <tr key={line.id}>
                       <td>
@@ -196,7 +197,7 @@ function UnexpectedLineForm({ detail, products, loading, onSubmit, onDone }: {
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const product = products.find(candidate => candidate.id === productId);
-  const requiresLot = Boolean(product?.requiresBatch || product?.requiresColada || product?.requiresExpiry);
+  const requiresLot = product ? requiresLotIdentity(product) : false;
   const requiresAsset = Boolean(product?.requiresSerial);
   const traceability = useTraceabilityOptions({ productId, isOutbound: false, requiresLot, requiresAsset, selectedLotId: lotId || undefined });
 
@@ -220,7 +221,7 @@ function UnexpectedLineForm({ detail, products, loading, onSubmit, onDone }: {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Select label="Producto" value={productId} onChange={event => setProductId(event.target.value)}>
           <option value="">Seleccione un producto</option>
-          {products.filter(candidate => candidate.status === 'active').map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.sku} · {candidate.name}</option>)}
+          {products.filter(candidate => isInventoryProduct(candidate) && isActiveProduct(candidate)).map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.sku} · {candidate.name}</option>)}
         </Select>
         <Input label="Cantidad contada" type="number" min="0" step="any" value={quantity} onChange={event => setQuantity(event.target.value)} />
         {requiresLot && <Select label="Lote canónico" value={lotId} onChange={event => setLotId(event.target.value)} disabled={traceability.loadingLots}><option value="">Seleccione un lote</option>{traceability.lots.map(lot => <option key={lot.id} value={lot.id}>{lot.lotNumber ?? 'Sin número'}</option>)}</Select>}

@@ -6,7 +6,8 @@ import { Badge, Input, Select, TrashIcon, formatCurrency, formatNumber } from '.
 import type { MovementType } from '../../../../../domain/entities/Movement';
 import type { DraftLine } from '../hooks/useMultiDetailForm';
 import { useTraceabilityOptions } from '../../hooks/useTraceabilityOptions';
-import { movementUnitContract, supportsMovementUnit } from '../../../../../domain/rules/movementRules';
+import { defaultMovementUnitId, movementUnitContract, supportsMovementUnit } from '../../../../../domain/rules/movementRules';
+import { isActiveProduct, isInventoryProduct, requiresLotIdentity } from '../../../../../domain/rules/productRules';
 import { useApp } from '../../../../state/AppContext';
 
 export interface MovementLineItemCardProps {
@@ -43,7 +44,7 @@ export function MovementLineItemCard({
   const unitHint = product && compatibleUnits.length > 0
     ? `Unidad base: ${baseUnit?.code ?? 'no disponible'}${alternateUnits.length > 0 ? ` · También disponible: ${alternateUnits.map(item => item.code).join(', ')}` : ''}`
     : undefined;
-  const requiresLot = Boolean(product?.requiresBatch || product?.requiresColada || product?.requiresExpiry);
+  const requiresLot = product ? requiresLotIdentity(product) : false;
 
   const { lots, assets, loadingLots, loadingAssets, lotsError, assetsError } = useTraceabilityOptions({
     productId: line.productId,
@@ -72,9 +73,7 @@ export function MovementLineItemCard({
             const previousUnitInvalid = Boolean(
               selectedProduct && line.unitId && !supportsMovementUnit(selectedProduct, line.unitId)
             );
-            const selectedDefault = selectedProduct?.unitId && supportsMovementUnit(selectedProduct, selectedProduct.unitId)
-              ? selectedProduct.unitId
-              : '';
+            const selectedDefault = selectedProduct ? defaultMovementUnitId(selectedProduct) : '';
             const nextUnitId = previousUnitInvalid
               ? ''
               : line.unitId && selectedProduct && supportsMovementUnit(selectedProduct, line.unitId)
@@ -86,7 +85,7 @@ export function MovementLineItemCard({
             }
           }}>
             <option value="">Seleccione…</option>
-            {products.filter(item => item.type !== 'maquinaria' && item.status === 'active').map(item => (
+            {products.filter(item => isInventoryProduct(item) && isActiveProduct(item)).map(item => (
               <option key={item.id} value={item.id}>{item.sku} — {item.name}</option>
             ))}
           </Select>
@@ -198,7 +197,7 @@ export function MovementLineItemCard({
             label="Vencimiento *"
             type="date"
             value={line.expiryDate}
-            readOnly={product.requiresBatch}
+            readOnly={requiresLot}
             onChange={event =>
               onUpdate({
                 expiryDate: event.target.value

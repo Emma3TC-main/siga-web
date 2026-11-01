@@ -7,11 +7,12 @@ import { MovementsList } from './multi-detail/components/MovementsList';
 import { MovementFormModal } from './multi-detail/components/MovementFormModal';
 import { MovementDetailModal } from './multi-detail/components/MovementDetailModal';
 import { MovementSuccessModal } from './multi-detail/components/MovementSuccessModal';
+import { MovementHistoryControls, MovementHistoryPagination } from './shared/history/MovementHistoryControls';
 
 export default function MultiDetailMovement({ mode }: { mode: MovementMode }) {
   const { navigate, canAccess } = useApp();
   const form = useMultiDetailForm(mode);
-  const { config, movements, openForm, selected, setSelected, success, setSuccess } = form;
+  const { config, movements, history, fixedHistoryType, openMovementDetail, openForm, selected, setSelected, success, setSuccess } = form;
 
   const moduleName = MODE_MODULE_NAME[mode];
   const canCreate = canAccess(moduleName, 'create');
@@ -37,7 +38,11 @@ export default function MultiDetailMovement({ mode }: { mode: MovementMode }) {
         </div>
       )}
 
-      <MovementsList movements={movements} config={config} canCreate={canCreate} onView={setSelected} onCreate={openForm} />
+      <MovementHistoryControls filters={history.filters} fixedType={fixedHistoryType} allowedTypes={mode === 'adjustment' ? ['ADJUST_POSITIVE', 'ADJUST_NEGATIVE'] : undefined} loading={history.loading} onChange={history.changeFilters} onClear={history.clearFilters} />
+      {history.error && <div className="mx-4 sm:mx-6 mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{history.error}</div>}
+
+      <MovementsList movements={movements} config={config} canCreate={canCreate} onView={openMovementDetail} onCreate={openForm} />
+      <MovementHistoryPagination page={history.page} size={history.size} totalElements={history.totalElements} loading={history.loading} onPageChange={history.setPage} />
 
       <MovementFormModal mode={mode} form={form} />
 

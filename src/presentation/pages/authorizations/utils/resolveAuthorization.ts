@@ -63,7 +63,7 @@ export function resolveAuthorization(auth: Authorization, sources: Authorization
   return {
     auth,
     product,
-    unit: units.find(u => u.id === product?.unitId),
+    unit: units.find(u => u.id === product?.storageUnitId),
     fromLocation: locations.find(l => l.id === auth.fromLocationId),
     toLocation: locations.find(l => l.id === auth.toLocationId),
     requester: responsibles.find(r => r.id === auth.requesterId),

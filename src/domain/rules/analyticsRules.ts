@@ -57,6 +57,6 @@ export function computeAnalyticsKpis(
     ira,
     adjustmentsCount: adjustments.length,
     adjustmentRate,
-    productsWithoutMovement: products.filter(product => product.type !== 'maquinaria' && !movements.find(movement => movement.productId === product.id)).length,
+    productsWithoutMovement: products.filter(product => product.productType !== 'MAQUINARIA' && !movements.find(movement => movement.productId === product.id)).length,
   };
 }

@@ -3,11 +3,13 @@ import { useApp } from '../../../../state/AppContext';
 import { useMovements } from '../../../../hooks/useMovements';
 import { useProducts } from '../../../../hooks/useProducts';
 import { useSuppliers } from '../../../../hooks/useSuppliers';
-import { nextMovementId, supportsMovementUnit } from '../../../../../domain/rules/movementRules';
+import { defaultMovementUnitId, nextMovementId, supportsMovementUnit } from '../../../../../domain/rules/movementRules';
+import { requiresLotIdentity } from '../../../../../domain/rules/productRules';
 import { getErrorMessage } from '../../../../../shared/errors/getErrorMessage';
 import type { Movement, MovementLine } from '../../../../../domain/entities/Movement';
 import type { SupplierSnapshot } from '../../../../../domain/entities/Supplier';
 import { evidenceUseCases } from '../../../../../app/compositionRoot';
+import { useMovementHistory } from '../../../../hooks/useMovementHistory';
 
 export type DraftLine = {
   id: string;
@@ -49,6 +51,7 @@ export function useEntryForm() {
   const { state, showToast } = useApp();
   const { currentUser } = state;
   const { movements, registerMovement } = useMovements();
+  const history = useMovementHistory({ movementType: 'ENTRY' });
   const { products } = useProducts();
   const { suppliers } = useSuppliers();
 
@@ -74,7 +77,7 @@ export function useEntryForm() {
     return activeSuppliers.filter(s => !q || s.businessName.toLowerCase().includes(q) || s.taxId.includes(q) || s.code.toLowerCase().includes(q) || (s.tradeName ?? '').toLowerCase().includes(q));
   }, [activeSuppliers, supplierSearch]);
 
-  const entries = movements.filter(movement => movement.type === 'entrada');
+  const entries = history.content;
   const totalCost = useMemo(() => lines.reduce((total, line) => {
     const product = products.find(item => item.id === line.productId);
     return total + Number(line.quantity || 0) * (Number(line.unitCost) || product?.avgCost || 0);
@@ -96,6 +99,14 @@ export function useEntryForm() {
 
   function openForm() {
     setShowForm(true);
+  }
+
+  async function openMovementDetail(id: string) {
+    try {
+      setSelectedMov(await history.loadDetail(id));
+    } catch (error) {
+      showToast('error', getErrorMessage(error));
+    }
   }
 
   function closeForm() {
@@ -129,9 +140,7 @@ export function useEntryForm() {
     const previousUnitInvalid = Boolean(
       selected && current?.unitId && !supportsMovementUnit(selected, current.unitId)
     );
-    const selectedDefault = selected?.unitId && supportsMovementUnit(selected, selected.unitId)
-      ? selected.unitId
-      : '';
+    const selectedDefault = selected ? defaultMovementUnitId(selected) : '';
     const nextUnitId = previousUnitInvalid
       ? ''
       : current?.unitId && selected && supportsMovementUnit(selected, current.unitId)
@@ -157,7 +166,7 @@ export function useEntryForm() {
     if (!product || !line.locationId || !line.unitId || Number(line.quantity) <= 0) return false;
     if (!supportsMovementUnit(product, line.unitId)) return false;
 
-    const lotIdRequired = product.requiresBatch || product.requiresColada || product.requiresExpiry;
+    const lotIdRequired = requiresLotIdentity(product);
     if (lotIdRequired && !line.batch?.trim()) return false;
     if (product.requiresSerial && (!line.serial?.trim() || Number(line.quantity) !== 1)) return false;
     if (product.requiresExpiry && !line.expiryDate) return false;
@@ -308,7 +317,7 @@ export function useEntryForm() {
 
   return {
     // datos de referencia locales al formulario
-    entries,
+    entries, history, openMovementDetail,
     activeSuppliers,
     filteredPickerSuppliers,
     totalCost,

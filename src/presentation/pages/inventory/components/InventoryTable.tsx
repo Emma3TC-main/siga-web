@@ -4,7 +4,7 @@ import {
   EyeIcon, ArrowDownIcon, ArrowUpIcon, ArrowsIcon, PackageIcon,
 } from '../../../components/ui';
 
-const TYPE_LABEL: Record<string, string> = { material: 'Material', insumo: 'Insumo', repuesto: 'Repuesto' };
+const TYPE_LABEL: Record<string, string> = { MATERIAL: 'Material', INSUMO: 'Insumo', REPUESTO: 'Repuesto', MAQUINARIA: 'Maquinaria' };
 
 interface InventoryTableProps {
   rows: InventoryRow[];
@@ -133,7 +133,7 @@ export function InventoryTable({
 
                   <td className="px-4 py-3">
                     <Badge variant="primary">
-                      {row.type ? TYPE_LABEL[row.type] ?? row.type : row.productType}
+                      {TYPE_LABEL[row.productType] ?? row.productType}
                     </Badge>
                   </td>
 
@@ -309,7 +309,7 @@ export function InventoryTable({
                   <div className="flex flex-wrap items-center gap-2 mt-2">
 
                     <Badge variant="primary">
-                      {row.type ? TYPE_LABEL[row.type] ?? row.type : row.productType}
+                      {TYPE_LABEL[row.productType] ?? row.productType}
                     </Badge>
 
                     <InventoryStatusBadge

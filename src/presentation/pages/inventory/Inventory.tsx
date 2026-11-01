@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../state/AppContext';
 import { useInventory } from '../../hooks/useInventory';
 import { useProducts } from '../../hooks/useProducts';
@@ -15,6 +15,7 @@ import { InventoryStatsBar } from './components/InventoryStatsBar';
 import { InventoryFiltersBar } from './components/InventoryFiltersBar';
 import { InventoryTable } from './components/InventoryTable';
 import { ProductDetailModal } from './components/ProductDetailModal';
+import { useMovementHistory } from '../../hooks/useMovementHistory';
 
 const PAGE_SIZE = 15;
 
@@ -25,7 +26,7 @@ export default function Inventory() {
   const { units } = useUnits();
   const { locations } = useLocations();
   const { users } = useUsers();
-  const { rows: allRows, getStockEntries, getProductMovements } = useInventory();
+  const { rows: allRows, getStockEntries } = useInventory();
   const { loading, error } = useOperations();
 
   const [search, setSearch] = useState('');
@@ -35,6 +36,11 @@ export default function Inventory() {
   const [page, setPage] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState('resumen');
+  const productHistory = useMovementHistory({}, Boolean(selectedProduct));
+
+  useEffect(() => {
+    productHistory.changeFilters({ productId: selectedProduct ?? undefined });
+  }, [selectedProduct, productHistory.changeFilters]);
 
   const rows = useMemo(
     () => filterInventoryRows(allRows, { search, type: filterType, status: filterStatus, categoryId: filterCategory }),
@@ -47,7 +53,7 @@ export default function Inventory() {
   const detail = selectedProduct ? products.find(p => p.id === selectedProduct) ?? null : null;
   const detailStock = detail ? getStockEntries(detail.id) : [];
   const detailTotalQty = sumQuantity(detailStock);
-  const detailMovements = detail ? getProductMovements(detail.id) : [];
+  const detailMovements = detail ? productHistory.content : [];
 
   const stats = {
     sin_stock: rows.filter(r => r.status === 'sin_stock').length,

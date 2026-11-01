@@ -1,36 +1,41 @@
 import { useState } from 'react';
 import { useApp } from '../../state/AppContext';
 import { useProducts } from '../../hooks/useProducts';
-import { useMovements } from '../../hooks/useMovements';
 import { useLocations } from '../../hooks/useLocations';
 import { useUnits } from '../../hooks/useUnits';
 import { useStock } from '../../hooks/useStock';
-import { useUsers } from '../../hooks/useUsers';
 import { stockEntriesOfProduct } from '../../../domain/rules/inventoryRules';
-import { getProductTimeline, searchProducts } from '../../../domain/rules/traceabilityRules';
+import { searchProducts } from '../../../domain/rules/traceabilityRules';
 import { getBreadcrumbs } from '../../navigation/routeRegistry';
 import {
-  PageHeader, Badge, Input, Select, EmptyState, formatCurrency, formatNumber,
+  PageHeader, EmptyState, formatNumber,
   PackageIcon, SearchIcon, MovementStatusBadge,
 } from '../../components/ui';
+import { useMovementHistory } from '../../hooks/useMovementHistory';
+import { MovementHistoryPagination } from '../movements/shared/history/MovementHistoryControls';
+import { useEffect } from 'react';
+import { productStorageUnitId } from '../../../domain/rules/productRules';
 
 export default function Traceability() {
   const { navigate } = useApp();
-  const { users } = useUsers();
   const { products } = useProducts();
-  const { movements } = useMovements();
   const { locations } = useLocations();
   const { units } = useUnits();
   const { stock } = useStock();
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
+  const productHistory = useMovementHistory({}, Boolean(selectedProduct));
+
+  useEffect(() => {
+    productHistory.changeFilters({ productId: selectedProduct || undefined });
+  }, [selectedProduct, productHistory.changeFilters]);
 
   const matchingProducts = searchProducts(products, search);
 
   const activeProduct = selectedProduct ? products.find(p => p.id === selectedProduct) : null;
-  const productMovements = activeProduct ? getProductTimeline(movements, activeProduct.id) : [];
+  const productMovements = activeProduct ? productHistory.content : [];
   const productStock = activeProduct ? stockEntriesOfProduct(stock, activeProduct.id) : [];
-  const unit = activeProduct ? units.find(u => u.id === activeProduct.unitId) : null;
+  const unit = activeProduct ? units.find(u => u.id === productStorageUnitId(activeProduct)) : null;
 
   const typeColors: Record<string, string> = {
     entrada: 'bg-emerald-100 border-emerald-300 text-emerald-700',
@@ -111,9 +116,6 @@ export default function Traceability() {
                 <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-200" />
                 <div className="space-y-4">
                   {productMovements.map((mv, idx) => {
-                    const fromLoc = locations.find(l => l.id === mv.fromLocationId);
-                    const toLoc = locations.find(l => l.id === mv.toLocationId);
-                    const user = users.find(u => u.id === mv.registeredBy);
                     const colorClass = typeColors[mv.type] ?? 'bg-gray-100 border-gray-200 text-gray-600';
 
                     return (
@@ -133,12 +135,9 @@ export default function Traceability() {
                             </div>
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                            <div><div className="text-xs text-gray-400">Cantidad</div><div className="font-bold text-[#093C5D]">{formatNumber(mv.quantity)} {unit?.code}</div></div>
-                            {fromLoc && <div><div className="text-xs text-gray-400">Desde</div><div className="font-medium">{fromLoc.name}</div></div>}
-                            {toLoc && <div><div className="text-xs text-gray-400">Hacia</div><div className="font-medium">{toLoc.name}</div></div>}
-                            <div><div className="text-xs text-gray-400">Registrado por</div><div className="font-medium">{user?.name} {user?.lastName}</div></div>
-                            {mv.totalCost && <div><div className="text-xs text-gray-400">Valor</div><div className="font-semibold text-[#3B7597]">{formatCurrency(mv.totalCost)}</div></div>}
-                            {mv.documentNumber && <div><div className="text-xs text-gray-400">Documento</div><div className="font-mono text-xs">{mv.documentNumber}</div></div>}
+                            <div><div className="text-xs text-gray-400">Código</div><div className="font-bold text-[#093C5D]">{mv.movementCode ?? mv.documentNumber}</div></div>
+                            <div><div className="text-xs text-gray-400">Registrado por</div><div className="font-mono text-xs">{mv.registeredBy}</div></div>
+                            {mv.referenceDocNumber && <div><div className="text-xs text-gray-400">Documento</div><div className="font-mono text-xs">{mv.referenceDocNumber}</div></div>}
                             {mv.motive && <div className="col-span-2"><div className="text-xs text-gray-400">Motivo</div><div className="text-xs text-gray-600">{mv.motive}</div></div>}
                           </div>
                         </div>
@@ -146,6 +145,7 @@ export default function Traceability() {
                     );
                   })}
                 </div>
+                <MovementHistoryPagination page={productHistory.page} size={productHistory.size} totalElements={productHistory.totalElements} loading={productHistory.loading} onPageChange={productHistory.setPage} />
               </div>
             </div>
           </div>

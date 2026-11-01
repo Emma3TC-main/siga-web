@@ -1,14 +1,12 @@
 import type { Movement } from '../../../../domain/entities/Movement';
-import type { User } from '../../../../domain/entities/User';
-import { Badge, formatNumber } from '../../../components/ui';
+import { Badge } from '../../../components/ui';
 
 interface ProductKardexTabProps {
   detailMovements: Movement[];
-  users: User[];
 }
 
-export function ProductKardexTab({ detailMovements, users }: ProductKardexTabProps) {
-  const shown = detailMovements.slice(0, 20);
+export function ProductKardexTab({ detailMovements }: ProductKardexTabProps) {
+  const shown = detailMovements;
   return (
   <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 
@@ -26,15 +24,15 @@ export function ProductKardexTab({ detailMovements, users }: ProductKardexTabPro
           </th>
 
           <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-            Entrada
+            Código
           </th>
 
           <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-            Salida
+            Referencia
           </th>
 
           <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-            Saldo
+            Sensible
           </th>
 
           <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-gray-400">
@@ -52,10 +50,6 @@ export function ProductKardexTab({ detailMovements, users }: ProductKardexTabPro
       <tbody className="divide-y divide-gray-100">
 
         {shown.map((mv, i) => {
-
-          const user = users.find(
-            u => u.id === mv.registeredBy
-          );
 
           const isIn =
             mv.type === 'entrada' ||
@@ -104,38 +98,14 @@ export function ProductKardexTab({ detailMovements, users }: ProductKardexTabPro
 
               <td className="px-4 py-3 text-right">
 
-                {isIn ? (
-
-                  <span className="inline-flex items-center justify-center min-w-[48px] px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-semibold tabular-nums">
-                    {formatNumber(mv.quantity)}
-                  </span>
-
-                ) : (
-
-                  <span className="text-xs text-gray-300">
-                    —
-                  </span>
-
-                )}
+                <span className="font-mono text-xs text-[#3B7597]">{mv.movementCode ?? mv.documentNumber}</span>
 
               </td>
 
 
               <td className="px-4 py-3 text-right">
 
-                {isOut ? (
-
-                  <span className="inline-flex items-center justify-center min-w-[48px] px-2 py-1 rounded-lg bg-red-50 text-red-500 text-xs font-semibold tabular-nums">
-                    {formatNumber(mv.quantity)}
-                  </span>
-
-                ) : (
-
-                  <span className="text-xs text-gray-300">
-                    —
-                  </span>
-
-                )}
+                <span className="font-mono text-xs">{mv.referenceDocNumber ?? '—'}</span>
 
               </td>
 
@@ -143,7 +113,7 @@ export function ProductKardexTab({ detailMovements, users }: ProductKardexTabPro
               <td className="px-4 py-3 text-right">
 
                 <span className="text-xs font-bold text-[#093C5D]">
-                  —
+                  {mv.isSensitive ? 'Sí' : 'No'}
                 </span>
 
               </td>
@@ -152,7 +122,7 @@ export function ProductKardexTab({ detailMovements, users }: ProductKardexTabPro
               <td className="px-4 py-3">
 
                 <span className="text-xs font-medium text-gray-600">
-                  {user?.name} {user?.lastName}
+                  {mv.registeredBy}
                 </span>
 
               </td>
@@ -161,7 +131,7 @@ export function ProductKardexTab({ detailMovements, users }: ProductKardexTabPro
               <td className="px-4 py-3">
 
                 <span className="text-xs font-mono text-[#3B7597]">
-                  {mv.documentNumber ?? '—'}
+                  {mv.referenceDocType ?? '—'}
                 </span>
 
               </td>

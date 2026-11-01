@@ -43,16 +43,20 @@ export function MovementHeaderStep({ mode, header, setHeader }: MovementHeaderSt
         <Input label="Número / referencia *" value={header.documentNumber} onChange={event => setHeader(previous => ({ ...previous, documentNumber: event.target.value }))} placeholder="OT-001-00045" />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {(responsibles.length > 0 || costCenters.length > 0) && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {responsibles.length > 0 && (
         <Select label="Responsable" value={header.requesterId} onChange={event => setHeader(previous => ({ ...previous, requesterId: event.target.value }))}>
           <option value="">Seleccione…</option>
           {responsibles.map(responsible => <option key={responsible.id} value={responsible.id}>{responsible.name}</option>)}
         </Select>
+        )}
+        {costCenters.length > 0 && (
         <Select label="Centro de costo" value={header.costCenterId} onChange={event => setHeader(previous => ({ ...previous, costCenterId: event.target.value }))}>
           <option value="">Seleccione…</option>
           {costCenters.map(center => <option key={center.id} value={center.id}>{center.code} — {center.name}</option>)}
         </Select>
-      </div>
+        )}
+      </div>}
 
       {mode === 'adjustment' ? (
         <Select label="Motivo *" value={header.motive} onChange={event => setHeader(previous => ({ ...previous, motive: event.target.value }))}>

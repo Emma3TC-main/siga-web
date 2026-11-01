@@ -41,7 +41,7 @@ return (
         },
         {
           label: 'Req. colada',
-          val: detail.requiresColada ? 'Sí' : 'No'
+          val: detail.requiresHeatNumber ? 'Sí' : 'No'
         },
         {
           label: 'Mov. sensible',

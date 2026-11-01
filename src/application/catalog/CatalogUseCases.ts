@@ -28,8 +28,8 @@ export interface CatalogUseCases {
   getUnits: GetUnits;
   createUnit: CreateUnit;
   getLocations: GetLocations;
-  getCostCenters: GetCostCenters;
-  getResponsibles: GetResponsibles;
+  getCostCenters?: GetCostCenters;
+  getResponsibles?: GetResponsibles;
   getSuppliers: GetSuppliers;
   getSupplier: GetSupplier;
   createSupplier: CreateSupplier;

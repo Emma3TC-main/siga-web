@@ -7,12 +7,13 @@ import { EntryFormModal } from './entries/components/EntryFormModal';
 import { EntryDetailModal } from './entries/components/EntryDetailModal';
 import { SupplierPickerModal } from './entries/components/SupplierPickerModal';
 import { EntrySuccessModal } from './entries/components/EntrySuccessModal';
+import { MovementHistoryControls, MovementHistoryPagination } from './shared/history/MovementHistoryControls';
 
 export default function Entries() {
   const { navigate } = useApp();
   const form = useEntryForm();
   const {
-    entries, selectedMov, setSelectedMov, successMov, setSuccessMov,
+    entries, history, openMovementDetail, selectedMov, setSelectedMov, successMov, setSuccessMov,
     supplierPickerOpen, setSupplierPickerOpen, supplierSearch, setSupplierSearch,
     filteredPickerSuppliers, supplierId, selectSupplier, openForm,
   } = form;
@@ -29,8 +30,11 @@ export default function Entries() {
         actions={<Button variant="primary" size="sm" icon={<PlusIcon size={14} />} onClick={openForm}>Nueva entrada</Button>}
       />
 
-      <div className="flex-1 overflow-auto">
-        <EntriesList entries={entries} onView={setSelectedMov} onNewEntry={openForm} />
+      <MovementHistoryControls filters={history.filters} fixedType="ENTRY" loading={history.loading} onChange={history.changeFilters} onClear={history.clearFilters} />
+      {history.error && <div className="mx-4 sm:mx-6 mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{history.error}</div>}
+      <div className="flex-1 overflow-auto mt-4">
+        <EntriesList entries={entries} onView={openMovementDetail} onNewEntry={openForm} />
+        <MovementHistoryPagination page={history.page} size={history.size} totalElements={history.totalElements} loading={history.loading} onPageChange={history.setPage} />
       </div>
 
       <EntryFormModal form={form} />

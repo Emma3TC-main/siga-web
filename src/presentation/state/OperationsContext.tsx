@@ -7,6 +7,7 @@ import type { Notification } from '../../domain/entities/Notification';
 import type { AuditEvent } from '../../domain/entities/AuditEvent';
 import type { Authorization } from '../../domain/entities/Authorization';
 import type { Movement } from '../../domain/entities/Movement';
+import type { MovementHistoryPage, MovementHistoryQuery } from '../../domain/repositories/MovementRepository';
 import type { PhysicalCount } from '../../domain/entities/PhysicalCount';
 import type { User } from '../../domain/entities/User';
 import type { StockEntry } from '../../domain/entities/Stock';
@@ -30,6 +31,8 @@ interface OperationsContextValue {
   error: Error | null;
   registerMovement: (input: RegisterMovementInput) => Promise<RegisterMovementResult>;
   submitMovement: (movementId: string) => Promise<Movement>;
+  searchMovements: (query?: MovementHistoryQuery) => Promise<MovementHistoryPage>;
+  getMovementDetail: (id: string) => Promise<Movement | null>;
   confirmMovement: (input: ConfirmMovementInput) => Promise<ConfirmMovementResult>;
   resolveAuthorization: (input: ResolveAuthorizationInput) => Promise<void>;
   searchAuditLog: (filters?: import('../../domain/repositories/AuditRepository').AuditQueryFilters) => Promise<import('../../domain/repositories/AuditRepository').AuditPage>;
@@ -193,6 +196,14 @@ export function OperationsProvider({ useCases, children }: { useCases: Operation
     return movement;
   }), [useCases, refresh, runExclusive]);
 
+  const searchMovements = useCallback((query?: MovementHistoryQuery) => {
+    return useCases.getMovements.search(query);
+  }, [useCases]);
+
+  const getMovementDetail = useCallback((id: string) => {
+    return useCases.getMovements.getById(id);
+  }, [useCases]);
+
   const confirmMovement = useCallback((input: ConfirmMovementInput) => runExclusive(async () => {
     const result = await useCases.confirmMovement.execute(input);
     if (result.outcome === 'confirmed') await refresh();
@@ -219,10 +230,10 @@ export function OperationsProvider({ useCases, children }: { useCases: Operation
 
   const value = useMemo<OperationsContextValue>(() => ({
     stock, movements, authorizations, alerts, unreadNotificationCount, notificationsLoading, notificationError,
-    auditLog, physicalCounts, operationalUsers, loading, error, registerMovement, submitMovement, confirmMovement,
+    auditLog, physicalCounts, operationalUsers, loading, error, registerMovement, submitMovement, searchMovements, getMovementDetail, confirmMovement,
     resolveAuthorization, searchAuditLog, markAlertRead, refreshNotifications,
   }), [stock, movements, authorizations, alerts, unreadNotificationCount, notificationsLoading, notificationError,
-    auditLog, physicalCounts, operationalUsers, loading, error, registerMovement, submitMovement, confirmMovement,
+    auditLog, physicalCounts, operationalUsers, loading, error, registerMovement, submitMovement, searchMovements, getMovementDetail, confirmMovement,
     resolveAuthorization, searchAuditLog, markAlertRead, refreshNotifications]);
 
   return <OperationsContext.Provider value={value}>{children}</OperationsContext.Provider>;

@@ -22,14 +22,14 @@ export function buildInventoryReport(
   categoryId: string,
 ): InventoryReportRow[] {
   return products
-    .filter(product => product.type !== 'maquinaria')
+    .filter(product => product.productType !== 'MAQUINARIA')
     .map(product => {
       const qty = sumQuantity(stockEntriesOfProduct(stock, product.id));
       return {
         ...product,
         qty,
         cat: categories.find(category => category.id === product.categoryId),
-        unit: units.find(unit => unit.id === product.unitId),
+        unit: units.find(unit => unit.id === product.storageUnitId),
         valuation: qty * (product.avgCost ?? 0),
       };
     })

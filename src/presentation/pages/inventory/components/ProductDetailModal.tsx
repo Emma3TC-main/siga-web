@@ -10,6 +10,7 @@ import { ProductSummaryTab } from './ProductSummaryTab';
 import { ProductLocationsTab } from './ProductLocationsTab';
 import { ProductBatchesTab } from './ProductBatchesTab';
 import { ProductKardexTab } from './ProductKardexTab';
+import { productStorageUnitId } from '../../../../domain/rules/productRules';
 
 interface ProductDetailModalProps {
   detail: Product | null;
@@ -32,7 +33,7 @@ export function ProductDetailModal({
   detail, detailTotalQty, detailStock, detailMovements, categories, units, locations, users,
   detailTab, onDetailTabChange, onClose, onGoEntries, onGoExits, onGoTransfers,
 }: ProductDetailModalProps) {
-  const unitCode = detail ? units.find(u => u.id === detail.unitId)?.code : undefined;
+  const unitCode = detail ? units.find(u => u.id === productStorageUnitId(detail))?.code : undefined;
 
   return (
   <Modal
@@ -52,10 +53,10 @@ export function ProductDetailModal({
             title={detail.name}
             badges={
               <Badge
-                variant={detail.status === 'active' ? 'success' : 'muted'}
+                variant={detail.active ? 'success' : 'muted'}
                 dot
               >
-                {detail.status === 'active' ? 'Activo' : 'Inactivo'}
+                {detail.active ? 'Activo' : 'Inactivo'}
               </Badge>
             }
           />
@@ -96,10 +97,10 @@ export function ProductDetailModal({
                 label="Estado"
                 value={
                   <Badge
-                    variant={detail.status === 'active' ? 'success' : 'muted'}
+                    variant={detail.active ? 'success' : 'muted'}
                     dot
                   >
-                    {detail.status === 'active' ? 'Activo' : 'Inactivo'}
+                    {detail.active ? 'Activo' : 'Inactivo'}
                   </Badge>
                 }
               />
@@ -109,7 +110,7 @@ export function ProductDetailModal({
             <div className="rounded-lg border border-gray-100 bg-gray-50/60 p-3">
               <DetailField
                 label="Requiere lote"
-                value={detail.requiresBatch ? 'Sí' : 'No'}
+                value={detail.requiresLot ? 'Sí' : 'No'}
               />
             </div>
 
@@ -231,7 +232,6 @@ export function ProductDetailModal({
           {detailTab === 'kardex' && (
             <ProductKardexTab
               detailMovements={detailMovements}
-              users={users}
             />
           )}
 

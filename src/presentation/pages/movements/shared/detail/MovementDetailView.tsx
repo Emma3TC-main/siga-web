@@ -77,6 +77,11 @@ export function MovementDetailView({ movement }: { movement: Movement }) {
 
   const costCenter = costCenters.find(item => item.id === movement.costCenterId);
   const requester = responsibles.find(item => item.id === movement.requesterId);
+  const costCenterLabel = movement.costCenterNameSnapshot
+    ? [movement.costCenterId, movement.costCenterNameSnapshot].filter(Boolean).join(' · ')
+    : costCenter
+      ? `${costCenter.code} · ${costCenter.name}`
+      : movement.costCenterId;
   const authorizedById = movement.authorizedBy ?? (authorization?.status === 'aprobado' ? authorization.resolvedBy : undefined);
   const documentLabel = [movement.documentType, [movement.documentSeries, movement.documentNumber].filter(Boolean).join('-')].filter(Boolean).join(' ');
 
@@ -116,8 +121,8 @@ export function MovementDetailView({ movement }: { movement: Movement }) {
           registeredByName={userName(movement.registeredBy)}
           authorizedByName={userName(authorizedById)}
           rejectedByName={userName(movement.rejectedBy ?? (authorization?.status === 'rechazado' ? authorization.resolvedBy : undefined))}
-          requesterName={requester?.name}
-          costCenterLabel={costCenter ? `${costCenter.code} · ${costCenter.name}` : undefined}
+          requesterName={requester?.name ?? movement.requesterId}
+          costCenterLabel={costCenterLabel}
           supplier={supplier}
         />
       )}

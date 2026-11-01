@@ -32,6 +32,12 @@ export function supportsMovementUnit(product: Product, unitId: string): boolean 
   return movementUnitIds(product).has(unitId);
 }
 
+/** Prefer the storage unit for operational entry; fall back to base only if needed. */
+export function defaultMovementUnitId(product: Product): string {
+  if (supportsMovementUnit(product, product.storageUnitId)) return product.storageUnitId;
+  return product.baseUnitId;
+}
+
 export function getMovementLines(movement: Movement): MovementLine[] {
   return movement.lines ?? [{
     id: '1', productId: movement.productId, quantity: movement.quantity, unitId: movement.unitId,
@@ -169,7 +175,7 @@ export function buildOutOfStockAlert(product: Product, now: Date): Alert {
     type: 'sin_stock',
     severity: 'critical',
     title: `Sin stock: ${product.name}`,
-    description: `${product.sku} - Existencia actual: 0 ${product.unitId}`,
+    description: `${product.sku} - Existencia actual: 0 ${product.storageUnitId}`,
     productId: product.id,
     createdAt: now.toISOString(),
     read: false,

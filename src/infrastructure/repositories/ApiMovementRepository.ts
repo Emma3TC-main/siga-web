@@ -1,6 +1,6 @@
 import { ApiClient } from '../http/ApiClient';
 import type { Movement, MovementLine, MovementType, MovementStatus } from '../../domain/entities/Movement';
-import type { MovementRepository } from '../../domain/repositories/MovementRepository';
+import type { MovementHistoryPage, MovementHistoryQuery, MovementRepository } from '../../domain/repositories/MovementRepository';
 import type { UnitRepository } from '../../domain/repositories/UnitRepository';
 import { MovementEvidenceRequiredError, NotFoundError } from '../../domain/errors';
 import { ApiError } from '../http/ApiClient';
@@ -14,11 +14,14 @@ interface BackendMovementResponse {
   requestedByUserId: string | null;
   costCenterCode: string | null;
   costCenterNameSnapshot: string | null;
-  supplierId: string | null;
-  supplierNameSnapshot: string | null;
-  supplierTaxIdSnapshot: string | null;
+  referenceDocType: string | null;
+  referenceDocNumber: string | null;
+  reason: string | null;
+  supplierId?: string | null;
+  supplierNameSnapshot?: string | null;
+  supplierTaxIdSnapshot?: string | null;
   sensitive: boolean;
-  sensitivityReason: string | null;
+  sensitivityReason?: string | null;
   details: BackendMovementDetailResponse[];
   createdAt: string;
   submittedAt: string | null;
@@ -44,8 +47,26 @@ interface BackendMovementDetailResponse {
   exchangeRateSource: string | null;
 }
 
-interface MovementPage {
-  content: BackendMovementResponse[];
+interface BackendMovementHistoryItem {
+  id: string;
+  movementCode: string;
+  movementType: string;
+  status: string;
+  sensitive: boolean;
+  registeredByUserId: string;
+  requestedByUserId: string | null;
+  costCenterCode: string | null;
+  costCenterNameSnapshot: string | null;
+  referenceDocType: string | null;
+  referenceDocNumber: string | null;
+  reason: string | null;
+  createdAt: string;
+  submittedAt: string | null;
+  confirmedAt: string | null;
+}
+
+interface BackendMovementPage {
+  content: BackendMovementHistoryItem[];
   page: number;
   size: number;
   totalElements: number;
@@ -59,8 +80,29 @@ export class ApiMovementRepository implements MovementRepository {
   constructor(private readonly units: UnitRepository) {}
 
   async getAll(): Promise<Movement[]> {
-    const data = await this.apiClient.get<MovementPage>(`${ApiMovementRepository.PATH}?page=0&size=100`);
-    return data.content.map((dto: BackendMovementResponse) => this.mapToDomain(dto));
+    return (await this.search()).content;
+  }
+
+  async search(query: MovementHistoryQuery = {}): Promise<MovementHistoryPage> {
+    const params = new URLSearchParams();
+    params.set('page', String(query.page ?? 0));
+    params.set('size', String(Math.min(query.size ?? 20, 100)));
+    const filters: (keyof Omit<MovementHistoryQuery, 'page' | 'size'>)[] = [
+      'movementCode', 'movementType', 'status', 'productId', 'lotId', 'assetId',
+      'sourceLocationId', 'destinationLocationId', 'locationId', 'registeredByUserId',
+      'requestedByUserId', 'from', 'to', 'sensitive', 'referenceDocNumber',
+    ];
+    for (const key of filters) {
+      const value = query[key];
+      if (value !== undefined && value !== '') params.set(key, String(value));
+    }
+    const data = await this.apiClient.get<BackendMovementPage>(`${ApiMovementRepository.PATH}?${params.toString()}`);
+    return {
+      content: data.content.map(dto => this.mapHistoryItem(dto)),
+      page: data.page,
+      size: data.size,
+      totalElements: data.totalElements,
+    };
   }
 
   async getById(id: string): Promise<Movement | null> {
@@ -268,14 +310,52 @@ export class ApiMovementRepository implements MovementRepository {
       quantity: lines.reduce((acc, l) => acc + l.quantity, 0),
       unitId: lines[0]?.unitId || '',
       documentNumber: dto.movementCode,
+      movementCode: dto.movementCode,
+      referenceDocType: dto.referenceDocType || undefined,
+      referenceDocNumber: dto.referenceDocNumber || undefined,
+      documentType: dto.referenceDocType || undefined,
+      motive: dto.reason || undefined,
       costCenterId: dto.costCenterCode || undefined,
+      costCenterNameSnapshot: dto.costCenterNameSnapshot || undefined,
       registeredBy: dto.registeredByUserId,
       requesterId: dto.requestedByUserId || undefined,
       createdAt: dto.createdAt,
+      submittedAt: dto.submittedAt || undefined,
       confirmedAt: dto.confirmedAt || undefined,
       isSensitive: dto.sensitive,
       supplierId: dto.supplierId || undefined,
       lines,
+    };
+  }
+
+  private mapHistoryItem(dto: BackendMovementHistoryItem): Movement {
+    const typeMap: Record<string, MovementType> = {
+      ENTRY: 'entrada', EXIT: 'salida', TRANSFER: 'transferencia',
+      ADJUST_POSITIVE: 'ajuste_positivo', ADJUST_NEGATIVE: 'ajuste_negativo',
+    };
+    const statusMap: Record<string, MovementStatus> = {
+      DRAFT: 'borrador', PENDING_AUTHORIZATION: 'pendiente_autorizacion',
+      AUTHORIZED: 'autorizado', CONFIRMED: 'confirmado', REJECTED: 'rechazado', CANCELLED: 'cancelado',
+    };
+    return {
+      id: dto.id,
+      movementCode: dto.movementCode,
+      type: typeMap[dto.movementType] ?? 'entrada',
+      status: statusMap[dto.status] ?? 'borrador',
+      productId: '', quantity: 0, unitId: '',
+      documentNumber: dto.movementCode,
+      documentType: dto.referenceDocType || undefined,
+      referenceDocType: dto.referenceDocType || undefined,
+      referenceDocNumber: dto.referenceDocNumber || undefined,
+      motive: dto.reason || undefined,
+      registeredBy: dto.registeredByUserId,
+      requesterId: dto.requestedByUserId || undefined,
+      costCenterId: dto.costCenterCode || undefined,
+      costCenterNameSnapshot: dto.costCenterNameSnapshot || undefined,
+      createdAt: dto.createdAt,
+      submittedAt: dto.submittedAt || undefined,
+      confirmedAt: dto.confirmedAt || undefined,
+      isSensitive: dto.sensitive,
     };
   }
 }

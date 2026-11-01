@@ -6,6 +6,7 @@ import { Input, Select, TrashIcon, formatCurrency, formatNumber } from '../../..
 import type { DraftLine } from '../hooks/useEntryForm';
 import { useTraceabilityOptions } from '../../hooks/useTraceabilityOptions';
 import { movementUnitContract } from '../../../../../domain/rules/movementRules';
+import { isActiveProduct, isInventoryProduct, productStorageUnitId, requiresLotIdentity } from '../../../../../domain/rules/productRules';
 
 export interface EntryLineItemCardProps {
   line: DraftLine;
@@ -36,7 +37,7 @@ export function EntryLineItemCard({ line, index, isValid, traceabilityBlockReaso
   const unitHint = product && compatibleUnits.length > 0
     ? `Unidad base: ${baseUnit?.code ?? 'no disponible'}${alternateUnits.length > 0 ? ` · También disponible: ${alternateUnits.map(item => item.code).join(', ')}` : ''}`
     : undefined;
-  const requiresLot = Boolean(product?.requiresBatch || product?.requiresColada || product?.requiresExpiry);
+  const requiresLot = product ? requiresLotIdentity(product) : false;
 
   const { lots, assets, loadingLots, loadingAssets, lotsError, assetsError } = useTraceabilityOptions({
     productId: line.productId,
@@ -119,8 +120,8 @@ return (
             {products
               .filter(
                 item =>
-                  item.type !== 'maquinaria' &&
-                  item.status === 'active'
+                  isInventoryProduct(item) &&
+                  isActiveProduct(item)
               )
               .map(item => (
 
@@ -340,7 +341,7 @@ return (
             )}{' '}
             {
               units.find(
-                item => item.id === product.unitId
+                item => item.id === productStorageUnitId(product)
               )?.code
             }
           </strong>

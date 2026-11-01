@@ -21,7 +21,7 @@ export default function WarehouseDashboard() {
   const todayMovements = movements.slice(0, 10);
   const lowStockProducts = products.filter(p => {
     const qty = stock.filter(s => s.productId === p.id).reduce((t, s) => t + s.quantity, 0);
-    return qty <= p.minStock && p.status === 'active';
+    return qty <= p.minStock && p.active;
   }).slice(0, 6);
   const totalLocations = locations.filter(l => l.status === 'active').length;
   const pendingMovements = myMovements.filter(m => m.status === 'pendiente_autorizacion').length;
@@ -241,7 +241,7 @@ return (
       : 'bajo_stock' as const;
 
   const unit = units.find(
-    u => u.id === product.unitId
+    u => u.id === product.storageUnitId
   );
 
   const isZeroStock = qty <= 0;
@@ -531,7 +531,7 @@ return (
           <div className="text-xl font-bold text-[#093C5D]">
             {
               products.filter(
-                p => p.status === 'active'
+                p => p.active
               ).length
             }
           </div>

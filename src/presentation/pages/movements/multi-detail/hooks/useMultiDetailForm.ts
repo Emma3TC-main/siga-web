@@ -10,6 +10,9 @@ import type { Movement, MovementLine, MovementType } from '../../../../../domain
 import { MODE_CONFIG, type MovementMode } from '../constants';
 import { evidenceUseCases } from '../../../../../app/compositionRoot';
 import { MovementEvidenceRequiredError } from '../../../../../domain/errors';
+import { useMovementHistory } from '../../../../hooks/useMovementHistory';
+import type { MovementHistoryType } from '../../../../../domain/repositories/MovementRepository';
+import { requiresLotIdentity } from '../../../../../domain/rules/productRules';
 
 export type DraftLine = {
   id: string;
@@ -64,6 +67,8 @@ export function useMultiDetailForm(mode: MovementMode) {
   const { products } = useProducts();
 
   const config = MODE_CONFIG[mode];
+  const fixedHistoryType: MovementHistoryType | undefined = mode === 'exit' ? 'EXIT' : mode === 'transfer' ? 'TRANSFER' : undefined;
+  const history = useMovementHistory({ movementType: fixedHistoryType ?? 'ADJUST_NEGATIVE' });
 
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
@@ -77,7 +82,7 @@ export function useMultiDetailForm(mode: MovementMode) {
   const [header, setHeader] = useState<MultiDetailHeaderData>(emptyHeader(mode));
   const [lines, setLines] = useState<DraftLine[]>([makeLine()]);
 
-  const movements = allMovements.filter(movement => config.types.includes(movement.type));
+  const movements = history.content;
   const effectiveType: MovementType = mode === 'adjustment' ? header.adjustmentType as MovementType : mode === 'exit' ? 'salida' : 'transferencia';
   const requiresStock = effectiveType === 'salida' || effectiveType === 'transferencia' || effectiveType === 'ajuste_negativo';
   const requiresEvidence = effectiveType === 'ajuste_negativo';
@@ -86,6 +91,14 @@ export function useMultiDetailForm(mode: MovementMode) {
     const entries = allStock.filter(stock => stock.productId === productId && stock.quantity > 0);
     const quantity = entries.reduce((total, stock) => total + stock.quantity, 0);
     return quantity > 0 ? entries.reduce((total, stock) => total + stock.quantity * stock.avgCost, 0) / quantity : products.find(product => product.id === productId)?.avgCost ?? 0;
+  }
+
+  async function openMovementDetail(id: string) {
+    try {
+      setSelected(await history.loadDetail(id));
+    } catch (error) {
+      showToast('error', getErrorMessage(error));
+    }
   }
 
   const totalCost = useMemo(() => lines.reduce((total, line) => total + Number(line.quantity || 0) * currentAverageCost(line.productId), 0), [lines, products, allStock]);
@@ -156,7 +169,7 @@ export function useMultiDetailForm(mode: MovementMode) {
     if (!requiresStock && !line.toLocationId) return 'Seleccione la ubicación del ajuste positivo.';
     if (effectiveType === 'transferencia' && !line.toLocationId) return 'Seleccione la ubicación de destino.';
     if (effectiveType === 'transferencia' && line.fromLocationId === line.toLocationId) return 'Origen y destino no pueden coincidir.';
-    const lotIdRequired = product.requiresBatch || product.requiresColada || product.requiresExpiry;
+    const lotIdRequired = requiresLotIdentity(product);
     if (lotIdRequired && !line.batch?.trim()) return 'El lote o colada es obligatorio.';
     if (product.requiresSerial && (!line.serial?.trim() || Number(line.quantity) !== 1)) return 'El activo es obligatorio y la cantidad debe ser 1.';
     if (product.requiresExpiry && effectiveType === 'ajuste_positivo' && !line.expiryDate) return 'La fecha de vencimiento es obligatoria.';
@@ -297,7 +310,7 @@ export function useMultiDetailForm(mode: MovementMode) {
 
   return {
     config,
-    movements,
+    movements, history, fixedHistoryType, openMovementDetail,
     networkOnline: state.networkOnline,
     open, openForm, closeForm,
     step, setStep,

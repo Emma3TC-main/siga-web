@@ -72,9 +72,9 @@ export function InventoryFiltersBar({
           "
         >
           <option value="">Todos los tipos</option>
-          <option value="material">Material</option>
-          <option value="insumo">Insumo</option>
-          <option value="repuesto">Repuesto</option>
+          <option value="MATERIAL">Material</option>
+          <option value="INSUMO">Insumo</option>
+          <option value="REPUESTO">Repuesto</option>
         </select>
 
 

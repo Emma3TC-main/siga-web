@@ -1,19 +1,13 @@
-import { useProducts } from '../../../../hooks/useProducts';
-import { useUsers } from '../../../../hooks/useUsers';
-import { Button, EmptyState, EyeIcon, MovementStatusBadge, PackageIcon, TableActionButton, formatCurrency } from '../../../../components/ui';
+import { Button, EmptyState, EyeIcon, MovementStatusBadge, PackageIcon, TableActionButton } from '../../../../components/ui';
 import type { Movement } from '../../../../../domain/entities/Movement';
-import { movementLines } from '../utils/movementLines';
 
 export interface EntriesListProps {
   entries: readonly Movement[];
-  onView: (movement: Movement) => void;
+  onView: (id: string) => void;
   onNewEntry: () => void;
 }
 
 export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
-  const { products } = useProducts();
-  const { users } = useUsers();
-
   return (
   <>
     {/* Desktop: table view */}
@@ -28,15 +22,15 @@ export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
             </th>
 
             <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-              Detalle
+              Código
             </th>
 
             <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-              Ítems
+              Referencia
             </th>
 
             <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-              Costo total
+              Centro de costo
             </th>
 
             <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-gray-400">
@@ -66,16 +60,6 @@ export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
 
           {entries.map(movement => {
 
-            const detail = movementLines(movement);
-
-            const firstProduct = products.find(
-              product => product.id === detail[0]?.productId
-            );
-
-            const user = users.find(
-              item => item.id === movement.registeredBy
-            );
-
             return (
 
               <tr
@@ -104,13 +88,11 @@ export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
                     <div className="min-w-0">
 
                       <div className="font-semibold text-sm text-[#093C5D] max-w-[220px] truncate">
-                        {firstProduct?.name ?? 'Producto'}
+                        {movement.movementCode ?? movement.documentNumber}
                       </div>
 
                       <div className="text-xs text-gray-400 max-w-[220px] truncate mt-0.5">
-                        {detail.length > 1
-                          ? `y ${detail.length - 1} ítem(s) más`
-                          : firstProduct?.sku}
+                        Entrada de inventario
                       </div>
 
                     </div>
@@ -122,7 +104,7 @@ export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
 
                 <td className="px-4 py-3 text-right">
                   <span className="text-sm font-bold text-[#093C5D] tabular-nums">
-                    {detail.length}
+                    {movement.referenceDocType ?? '—'} {movement.referenceDocNumber ?? ''}
                   </span>
                 </td>
 
@@ -130,17 +112,7 @@ export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
                 <td className="px-4 py-3 text-right">
 
                   <span className="text-xs font-semibold text-gray-700 tabular-nums">
-                    {formatCurrency(
-                      detail.reduce(
-                        (total, line) =>
-                          total +
-                          (
-                            line.totalCost ??
-                            line.quantity * (line.unitCost ?? 0)
-                          ),
-                        0
-                      )
-                    )}
+                    {movement.costCenterNameSnapshot ?? movement.costCenterId ?? '—'}
                   </span>
 
                 </td>
@@ -149,11 +121,11 @@ export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
                 <td className="px-4 py-3">
 
                   <div className="text-xs font-medium text-gray-700">
-                    {movement.documentType}
+                    {movement.motive ?? '—'}
                   </div>
 
                   <div className="font-mono text-[10px] text-gray-400 mt-0.5">
-                    {movement.documentNumber}
+                    {movement.isSensitive ? 'Sensible' : 'Estándar'}
                   </div>
 
                 </td>
@@ -162,7 +134,7 @@ export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
                 <td className="px-4 py-3">
 
                   <span className="text-xs text-gray-600 max-w-[140px] truncate block">
-                    {user?.name} {user?.lastName}
+                    {movement.registeredBy}
                   </span>
 
                 </td>
@@ -191,7 +163,7 @@ export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
                   <TableActionButton
                     icon={<EyeIcon size={14} />}
                     label={`Ver ${movement.id}`}
-                    onClick={() => onView(movement)}
+                    onClick={() => onView(movement.id)}
                   />
 
                 </td>
@@ -214,27 +186,11 @@ export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
 
       {entries.map(movement => {
 
-        const detail = movementLines(movement);
-
-        const firstProduct = products.find(
-          product => product.id === detail[0]?.productId
-        );
-
-        const cost = detail.reduce(
-          (total, line) =>
-            total +
-            (
-              line.totalCost ??
-              line.quantity * (line.unitCost ?? 0)
-            ),
-          0
-        );
-
         return (
 
           <button
             key={movement.id}
-            onClick={() => onView(movement)}
+            onClick={() => onView(movement.id)}
             className="w-full bg-white border border-gray-200 rounded-xl shadow-sm p-4 text-left hover:shadow-md hover:border-emerald-200 transition-all"
           >
 
@@ -259,11 +215,11 @@ export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
                   </div>
 
                   <div className="font-semibold text-sm text-[#093C5D] mt-0.5 truncate">
-                    {firstProduct?.name}
+                    {movement.movementCode ?? movement.documentNumber}
                   </div>
 
                   <div className="text-xs text-gray-400 mt-1">
-                    {detail.length} ítem(s) · {movement.documentType} {movement.documentNumber}
+                    {movement.referenceDocType ?? 'Sin referencia'} {movement.referenceDocNumber ?? ''}
                   </div>
 
                 </div>
@@ -285,7 +241,7 @@ export function EntriesList({ entries, onView, onNewEntry }: EntriesListProps) {
               </span>
 
               <strong className="text-[#093C5D]">
-                {formatCurrency(cost)}
+                {movement.costCenterNameSnapshot ?? movement.costCenterId ?? 'Sin centro de costo'}
               </strong>
 
             </div>

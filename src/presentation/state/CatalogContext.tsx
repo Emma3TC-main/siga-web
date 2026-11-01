@@ -76,7 +76,8 @@ export function CatalogProvider({ useCases, children }: { useCases: CatalogUseCa
       useCases.getProducts.execute(OPERATIONAL_PRODUCT_QUERY), useCases.getProducts.execute(INITIAL_PRODUCT_QUERY),
       useCases.getCategories.execute(), useCases.getUnits.execute(),
       useCases.getSuppliers.execute(INITIAL_SUPPLIER_QUERY), useCases.getLocations.execute(),
-      useCases.getCostCenters.execute(), useCases.getResponsibles.execute(),
+      useCases.getCostCenters?.execute() ?? Promise.resolve([] as CostCenter[]),
+      useCases.getResponsibles?.execute() ?? Promise.resolve([] as Responsible[]),
     ]).then(([operationalProducts, loadedProducts, loadedCategories, loadedUnits, loadedSuppliers, loadedLocations, loadedCostCenters, loadedResponsibles]) => {
       if (cancelled) return;
       setProducts(operationalProducts.content); setProductResult(loadedProducts); setProductError(null);

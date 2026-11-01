@@ -3,6 +3,7 @@ import type { Location } from '../entities/Location';
 import type { Product, ProductStatus } from '../entities/Product';
 import type { StockEntry } from '../entities/Stock';
 import type { UnitOfMeasure } from '../entities/UnitOfMeasure';
+import { isInventoryProduct, productStorageUnitId } from './productRules';
 
 /** Días de anticipación desde los cuales un lote se considera "próximo a vencer". */
 export const EXPIRY_WARNING_DAYS = 60;
@@ -60,7 +61,7 @@ export function buildInventoryRows(
   units: readonly UnitOfMeasure[],
 ): InventoryRow[] {
   return products
-    .filter(product => product.type !== 'maquinaria')
+    .filter(isInventoryProduct)
     .map(product => {
       const entries = stockEntriesOfProduct(stock, product.id);
       const totalQty = sumQuantity(entries);
@@ -71,7 +72,7 @@ export function buildInventoryRows(
         status: getInventoryStatus(totalQty, product.minStock, nearestExpiry?.expiryDate),
         nearestExpiry,
         cat: categories.find(category => category.id === product.categoryId),
-        unit: units.find(unit => unit.id === product.unitId),
+        unit: units.find(unit => unit.id === productStorageUnitId(product)),
         valuation: totalQty * (product.avgCost ?? 0),
       };
     });
@@ -88,7 +89,7 @@ export function filterInventoryRows(rows: readonly InventoryRow[], filters: Inve
   const query = filters.search.toLowerCase();
   return rows.filter(row => {
     if (query && !row.name.toLowerCase().includes(query) && !row.sku.toLowerCase().includes(query)) return false;
-    if (filters.type && row.type !== filters.type) return false;
+    if (filters.type && row.productType !== filters.type) return false;
     if (filters.status && row.status !== filters.status) return false;
     if (filters.categoryId && row.categoryId !== filters.categoryId) return false;
     return true;

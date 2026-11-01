@@ -33,8 +33,8 @@ export function useDashboardMetrics() {
   const machineryAvailability = computeMachineryAvailability(machinery);
 
   const getStockTotal = (productId: string) => stock.filter(s => s.productId === productId).reduce((sum, s) => sum + s.quantity, 0);
-  const belowMin = products.filter(p => p.type !== 'maquinaria' && getStockTotal(p.id) > 0 && getStockTotal(p.id) < p.minStock).length;
-  const zeroStock = products.filter(p => p.type !== 'maquinaria' && getStockTotal(p.id) === 0 && p.minStock > 0).length;
+  const belowMin = products.filter(p => p.productType !== 'MAQUINARIA' && getStockTotal(p.id) > 0 && getStockTotal(p.id) < p.minStock).length;
+  const zeroStock = products.filter(p => p.productType !== 'MAQUINARIA' && getStockTotal(p.id) === 0 && p.minStock > 0).length;
 
   const today = new Date();
   const expirySoon = products.filter(p => {
