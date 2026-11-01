@@ -4,6 +4,7 @@ import type { Product, ProductStatus } from '../entities/Product';
 import type { StockEntry } from '../entities/Stock';
 import type { UnitOfMeasure } from '../entities/UnitOfMeasure';
 import { isInventoryProduct, productStorageUnitId } from './productRules';
+import { aggregateStockCost } from './stockCostRules';
 
 /** Días de anticipación desde los cuales un lote se considera "próximo a vencer". */
 export const EXPIRY_WARNING_DAYS = 60;
@@ -44,8 +45,9 @@ export function nearestExpiryEntry(entries: readonly StockEntry[]): StockEntry |
 }
 
 /** `status` sustituye al estado activo/inactivo del producto, igual que la consulta original. */
-export interface InventoryRow extends Omit<Product, 'status'> {
+export interface InventoryRow extends Omit<Product, 'status' | 'avgCost'> {
   totalQty: number;
+  avgCost: number;
   status: InventoryStatus;
   nearestExpiry: StockEntry | undefined;
   cat: Category | undefined;
@@ -64,16 +66,18 @@ export function buildInventoryRows(
     .filter(isInventoryProduct)
     .map(product => {
       const entries = stockEntriesOfProduct(stock, product.id);
-      const totalQty = sumQuantity(entries);
+      const cost = aggregateStockCost(entries);
+      const totalQty = cost.quantity;
       const nearestExpiry = nearestExpiryEntry(entries);
       return {
         ...product,
         totalQty,
+        avgCost: cost.avgCost,
         status: getInventoryStatus(totalQty, product.minStock, nearestExpiry?.expiryDate),
         nearestExpiry,
         cat: categories.find(category => category.id === product.categoryId),
         unit: units.find(unit => unit.id === productStorageUnitId(product)),
-        valuation: totalQty * (product.avgCost ?? 0),
+        valuation: cost.valuation,
       };
     });
 }

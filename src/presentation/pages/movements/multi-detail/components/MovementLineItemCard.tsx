@@ -17,7 +17,7 @@ export interface MovementLineItemCardProps {
   canRemove: boolean;
   requiresStock: boolean;
   effectiveType: MovementType;
-  currentAverageCost: (productId: string) => number;
+  currentAverageCost: (line: DraftLine) => number;
   availableStock: (line: DraftLine) => number;
   onRemove: () => void;
   onUpdate: (patch: Partial<DraftLine>) => void;
@@ -108,7 +108,7 @@ export function MovementLineItemCard({
         </div>
         <div className="lg:col-span-3">
           <div className="text-xs uppercase font-semibold text-gray-600 mb-1">Valor estimado</div>
-          <div className="siga-input bg-gray-50">{formatCurrency(Number(line.quantity || 0) * currentAverageCost(line.productId))}</div>
+          <div className="siga-input bg-gray-50">{formatCurrency(Number(line.quantity || 0) * currentAverageCost(line))}</div>
         </div>
       </div>
 

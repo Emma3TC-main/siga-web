@@ -13,6 +13,7 @@ import { MovementEvidenceRequiredError } from '../../../../../domain/errors';
 import { useMovementHistory } from '../../../../hooks/useMovementHistory';
 import type { MovementHistoryType } from '../../../../../domain/repositories/MovementRepository';
 import { requiresLotIdentity } from '../../../../../domain/rules/productRules';
+import { findExactStockEntry } from '../../../../../domain/rules/stockCostRules';
 
 export type DraftLine = {
   id: string;
@@ -32,6 +33,13 @@ const makeLine = (): DraftLine => ({
   id: `line-${Date.now()}-${Math.random()}`,
   productId: '', quantity: '', unitId: '', fromLocationId: '', toLocationId: '', batch: '', serial: '', expiryDate: '',
 });
+
+function sameSourceBalance(left: DraftLine, right: DraftLine): boolean {
+  return left.productId === right.productId
+    && left.fromLocationId === right.fromLocationId
+    && (left.batch || null) === (right.batch || null)
+    && (left.serial || null) === (right.serial || null);
+}
 
 export interface MultiDetailHeaderData {
   adjustmentType: string;
@@ -87,10 +95,14 @@ export function useMultiDetailForm(mode: MovementMode) {
   const requiresStock = effectiveType === 'salida' || effectiveType === 'transferencia' || effectiveType === 'ajuste_negativo';
   const requiresEvidence = effectiveType === 'ajuste_negativo';
 
-  function currentAverageCost(productId: string) {
-    const entries = allStock.filter(stock => stock.productId === productId && stock.quantity > 0);
-    const quantity = entries.reduce((total, stock) => total + stock.quantity, 0);
-    return quantity > 0 ? entries.reduce((total, stock) => total + stock.quantity * stock.avgCost, 0) / quantity : products.find(product => product.id === productId)?.avgCost ?? 0;
+  function currentAverageCost(line: DraftLine) {
+    if (!requiresStock || !line.fromLocationId) return 0;
+    return findExactStockEntry(allStock, {
+      productId: line.productId,
+      locationId: line.fromLocationId,
+      lotId: line.batch || null,
+      assetId: line.serial || null,
+    })?.avgCost ?? 0;
   }
 
   async function openMovementDetail(id: string) {
@@ -101,7 +113,7 @@ export function useMultiDetailForm(mode: MovementMode) {
     }
   }
 
-  const totalCost = useMemo(() => lines.reduce((total, line) => total + Number(line.quantity || 0) * currentAverageCost(line.productId), 0), [lines, products, allStock]);
+  const totalCost = useMemo(() => lines.reduce((total, line) => total + Number(line.quantity || 0) * currentAverageCost(line), 0), [lines, allStock, requiresStock]);
   const sensitive = mode === 'adjustment' || totalCost >= 5000 || lines.some(line => products.find(product => product.id === line.productId)?.sensitiveMovement);
 
   function reset() {
@@ -156,7 +168,12 @@ export function useMultiDetailForm(mode: MovementMode) {
   }
 
   function availableStock(line: DraftLine) {
-    return allStock.filter(stock => stock.productId === line.productId && stock.locationId === line.fromLocationId).reduce((total, stock) => total + stock.quantity, 0);
+    return findExactStockEntry(allStock, {
+      productId: line.productId,
+      locationId: line.fromLocationId,
+      lotId: line.batch || null,
+      assetId: line.serial || null,
+    })?.quantity ?? 0;
   }
 
   function lineError(line: DraftLine) {
@@ -174,7 +191,7 @@ export function useMultiDetailForm(mode: MovementMode) {
     if (product.requiresSerial && (!line.serial?.trim() || Number(line.quantity) !== 1)) return 'El activo es obligatorio y la cantidad debe ser 1.';
     if (product.requiresExpiry && effectiveType === 'ajuste_positivo' && !line.expiryDate) return 'La fecha de vencimiento es obligatoria.';
     if (requiresStock) {
-      const requested = lines.filter(item => item.productId === line.productId && item.fromLocationId === line.fromLocationId).reduce((total, item) => total + Number(item.quantity || 0), 0);
+      const requested = lines.filter(item => sameSourceBalance(item, line)).reduce((total, item) => total + Number(item.quantity || 0), 0);
       const available = availableStock(line);
       if (requested > available) return `409 CONFLICT · Disponible ${formatNumber(available)}, solicitado ${formatNumber(requested)} en estas líneas.`;
     }
@@ -190,6 +207,7 @@ export function useMultiDetailForm(mode: MovementMode) {
 
   function buildMovement(status: Movement['status']): Movement {
     const detail: MovementLine[] = lines.map((line, index) => {
+      const sourceCost = requiresStock ? currentAverageCost(line) : undefined;
       return {
         id: `${index + 1}`,
         productId: line.productId,
@@ -202,8 +220,8 @@ export function useMultiDetailForm(mode: MovementMode) {
         lotSource: line.lotSource,
         assetSource: line.assetSource,
         expiryDate: line.expiryDate || undefined,
-        unitCost: currentAverageCost(line.productId),
-        totalCost: Number(line.quantity) * currentAverageCost(line.productId),
+        unitCost: sourceCost,
+        totalCost: sourceCost === undefined ? undefined : Number(line.quantity) * sourceCost,
       };
     });
     const first = detail[0];

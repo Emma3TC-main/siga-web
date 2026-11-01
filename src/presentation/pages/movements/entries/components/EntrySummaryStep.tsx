@@ -4,6 +4,7 @@ import { useSuppliers } from '../../../../hooks/useSuppliers';
 import { useUnits } from '../../../../hooks/useUnits';
 import { formatCurrency, formatNumber } from '../../../../components/ui';
 import type { DraftLine, EntryHeaderData } from '../hooks/useEntryForm';
+import { parseExplicitUnitCost } from '../../../../../domain/rules/movementCostRules';
 
 export interface EntrySummaryStepProps {
   header: EntryHeaderData;
@@ -202,11 +203,7 @@ return (
                   <span className="text-xs font-semibold text-[#3B7597] tabular-nums">
                     {formatCurrency(
                       Number(line.quantity) *
-                      (
-                        Number(line.unitCost) ||
-                        product?.avgCost ||
-                        0
-                      )
+                      (parseExplicitUnitCost(line.unitCost) ?? 0)
                     )}
                   </span>
 
@@ -240,11 +237,7 @@ return (
 
         const subtotal =
           Number(line.quantity) *
-          (
-            Number(line.unitCost) ||
-            product?.avgCost ||
-            0
-          );
+          (parseExplicitUnitCost(line.unitCost) ?? 0);
 
         return (
 

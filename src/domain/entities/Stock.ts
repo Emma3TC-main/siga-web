@@ -1,4 +1,5 @@
 export interface StockEntry {
+  id?: string;
   productId: string;
   locationId: string;
   quantity: number;

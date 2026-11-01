@@ -10,6 +10,7 @@ import type { Movement, MovementLine } from '../../../../../domain/entities/Move
 import type { SupplierSnapshot } from '../../../../../domain/entities/Supplier';
 import { evidenceUseCases } from '../../../../../app/compositionRoot';
 import { useMovementHistory } from '../../../../hooks/useMovementHistory';
+import { parseExplicitUnitCost } from '../../../../../domain/rules/movementCostRules';
 
 export type DraftLine = {
   id: string;
@@ -79,9 +80,8 @@ export function useEntryForm() {
 
   const entries = history.content;
   const totalCost = useMemo(() => lines.reduce((total, line) => {
-    const product = products.find(item => item.id === line.productId);
-    return total + Number(line.quantity || 0) * (Number(line.unitCost) || product?.avgCost || 0);
-  }, 0), [lines, products]);
+    return total + Number(line.quantity || 0) * (parseExplicitUnitCost(line.unitCost) ?? 0);
+  }, 0), [lines]);
   const hasSensitiveLine = lines.some(line => products.find(product => product.id === line.productId)?.sensitiveMovement);
 
   function resetForm() {
@@ -149,7 +149,7 @@ export function useEntryForm() {
     updateLine(id, {
       productId,
       unitId: nextUnitId,
-      unitCost: selected ? String(selected.avgCost) : '',
+      unitCost: '',
       batch: '',
       serial: '',
       lotSource: undefined,
@@ -164,6 +164,7 @@ export function useEntryForm() {
   function isLineValid(line: DraftLine) {
     const product = products.find(item => item.id === line.productId);
     if (!product || !line.locationId || !line.unitId || Number(line.quantity) <= 0) return false;
+    if (parseExplicitUnitCost(line.unitCost) === undefined) return false;
     if (!supportsMovementUnit(product, line.unitId)) return false;
 
     const lotIdRequired = requiresLotIdentity(product);
@@ -200,8 +201,7 @@ export function useEntryForm() {
 
   function buildMovement(status: Movement['status']): Movement {
     const detail: MovementLine[] = lines.map((line, index) => {
-      const product = products.find(item => item.id === line.productId);
-      const unitCost = Number(line.unitCost) || product?.avgCost || 0;
+      const unitCost = parseExplicitUnitCost(line.unitCost);
       const quantity = Number(line.quantity);
       return {
         id: `${index + 1}`,
@@ -215,7 +215,7 @@ export function useEntryForm() {
         assetSource: line.assetSource,
         expiryDate: line.expiryDate || undefined,
         unitCost,
-        totalCost: quantity * unitCost,
+        totalCost: unitCost === undefined ? undefined : quantity * unitCost,
       };
     });
     const first = detail[0];

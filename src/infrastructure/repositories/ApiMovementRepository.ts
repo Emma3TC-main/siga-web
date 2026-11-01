@@ -298,8 +298,8 @@ export class ApiMovementRepository implements MovementRepository {
       serial: d.assetId || undefined,
       lotSource: d.lotId ? 'canonical' : undefined,
       assetSource: d.assetId ? 'canonical' : undefined,
-      unitCost: d.originalUnitCost || undefined,
-      totalCost: (d.enteredQuantity && d.originalUnitCost) ? (d.enteredQuantity * d.originalUnitCost) : undefined,
+      unitCost: d.originalUnitCost ?? undefined,
+      totalCost: d.originalUnitCost === null ? undefined : d.enteredQuantity * d.originalUnitCost,
     }));
 
     return {

@@ -11,6 +11,7 @@ import { ProductLocationsTab } from './ProductLocationsTab';
 import { ProductBatchesTab } from './ProductBatchesTab';
 import { ProductKardexTab } from './ProductKardexTab';
 import { productStorageUnitId } from '../../../../domain/rules/productRules';
+import { aggregateStockCost } from '../../../../domain/rules/stockCostRules';
 
 interface ProductDetailModalProps {
   detail: Product | null;
@@ -34,6 +35,7 @@ export function ProductDetailModal({
   detailTab, onDetailTabChange, onClose, onGoEntries, onGoExits, onGoTransfers,
 }: ProductDetailModalProps) {
   const unitCode = detail ? units.find(u => u.id === productStorageUnitId(detail))?.code : undefined;
+  const detailCost = aggregateStockCost(detailStock);
 
   return (
   <Modal
@@ -165,7 +167,7 @@ export function ProductDetailModal({
 
               <DetailField
                 label="Costo promedio"
-                value={formatCurrency(detail.avgCost ?? 0)}
+                value={formatCurrency(detailCost.avgCost)}
               />
 
             </div>
@@ -177,9 +179,7 @@ export function ProductDetailModal({
                 label="Valorización"
                 value={
                   <span className="font-semibold text-[#093C5D]">
-                    {formatCurrency(
-                      detailTotalQty * (detail.avgCost ?? 0)
-                    )}
+                    {formatCurrency(detailCost.valuation)}
                   </span>
                 }
               />

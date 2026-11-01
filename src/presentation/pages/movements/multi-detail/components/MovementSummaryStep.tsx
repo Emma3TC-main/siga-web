@@ -10,7 +10,7 @@ export interface MovementSummaryStepProps {
   effectiveType: MovementType;
   totalCost: number;
   sensitive: boolean;
-  currentAverageCost: (productId: string) => number;
+  currentAverageCost: (line: DraftLine) => number;
 }
 
 export function MovementSummaryStep({ lines, effectiveType, totalCost, sensitive, currentAverageCost }: MovementSummaryStepProps) {
@@ -55,7 +55,7 @@ export function MovementSummaryStep({ lines, effectiveType, totalCost, sensitive
                   <td className="text-right">{formatNumber(Number(line.quantity))} {units.find(unit => unit.id === line.unitId)?.code}</td>
                   <td>{locations.find(location => location.id === line.fromLocationId)?.name ?? '—'}</td>
                   <td>{locations.find(location => location.id === line.toLocationId)?.name ?? '—'}</td>
-                  <td className="text-right">{formatCurrency(Number(line.quantity) * currentAverageCost(line.productId))}</td>
+                  <td className="text-right">{formatCurrency(Number(line.quantity) * currentAverageCost(line))}</td>
                 </tr>
               );
             })}
@@ -68,7 +68,7 @@ export function MovementSummaryStep({ lines, effectiveType, totalCost, sensitive
         {lines.map((line, index) => {
           const product = products.find(item => item.id === line.productId);
           const unit = units.find(item => item.id === line.unitId);
-          const value = Number(line.quantity) * currentAverageCost(line.productId);
+          const value = Number(line.quantity) * currentAverageCost(line);
           return (
             <div key={line.id} className="siga-card p-3">
               <div className="flex items-start justify-between gap-2">

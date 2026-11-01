@@ -7,7 +7,7 @@ export interface MovementLineItemsStepProps {
   lines: DraftLine[];
   requiresStock: boolean;
   effectiveType: MovementType;
-  currentAverageCost: (productId: string) => number;
+  currentAverageCost: (line: DraftLine) => number;
   availableStock: (line: DraftLine) => number;
   lineError: (line: DraftLine) => string;
   onAddLine: () => void;

@@ -4,6 +4,7 @@ import { useStock } from '../../../../hooks/useStock';
 import { useUnits } from '../../../../hooks/useUnits';
 import { Input, Select, TrashIcon, formatCurrency, formatNumber } from '../../../../components/ui';
 import type { DraftLine } from '../hooks/useEntryForm';
+import { parseExplicitUnitCost } from '../../../../../domain/rules/movementCostRules';
 import { useTraceabilityOptions } from '../../hooks/useTraceabilityOptions';
 import { movementUnitContract } from '../../../../../domain/rules/movementRules';
 import { isActiveProduct, isInventoryProduct, productStorageUnitId, requiresLotIdentity } from '../../../../../domain/rules/productRules';
@@ -356,10 +357,7 @@ return (
           <strong className="text-[#093C5D]">
             {formatCurrency(
               Number(line.quantity || 0) *
-              (
-                Number(line.unitCost) ||
-                (product.avgCost ?? 0)
-              )
+              (parseExplicitUnitCost(line.unitCost) ?? 0)
             )}
           </strong>
 
