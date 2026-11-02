@@ -33,6 +33,7 @@ interface OperationsContextValue {
   submitMovement: (movementId: string) => Promise<Movement>;
   searchMovements: (query?: MovementHistoryQuery) => Promise<MovementHistoryPage>;
   getMovementDetail: (id: string) => Promise<Movement | null>;
+  getAuthorizationDetail: (id: string) => Promise<Authorization | null>;
   confirmMovement: (input: ConfirmMovementInput) => Promise<ConfirmMovementResult>;
   resolveAuthorization: (input: ResolveAuthorizationInput) => Promise<void>;
   searchAuditLog: (filters?: import('../../domain/repositories/AuditRepository').AuditQueryFilters) => Promise<import('../../domain/repositories/AuditRepository').AuditPage>;
@@ -204,6 +205,10 @@ export function OperationsProvider({ useCases, children }: { useCases: Operation
     return useCases.getMovements.getById(id);
   }, [useCases]);
 
+  const getAuthorizationDetail = useCallback((id: string) => {
+    return useCases.getAuthorizations.getById(id);
+  }, [useCases]);
+
   const confirmMovement = useCallback((input: ConfirmMovementInput) => runExclusive(async () => {
     const result = await useCases.confirmMovement.execute(input);
     if (result.outcome === 'confirmed') await refresh();
@@ -230,10 +235,10 @@ export function OperationsProvider({ useCases, children }: { useCases: Operation
 
   const value = useMemo<OperationsContextValue>(() => ({
     stock, movements, authorizations, alerts, unreadNotificationCount, notificationsLoading, notificationError,
-    auditLog, physicalCounts, operationalUsers, loading, error, registerMovement, submitMovement, searchMovements, getMovementDetail, confirmMovement,
+    auditLog, physicalCounts, operationalUsers, loading, error, registerMovement, submitMovement, searchMovements, getMovementDetail, getAuthorizationDetail, confirmMovement,
     resolveAuthorization, searchAuditLog, markAlertRead, refreshNotifications,
   }), [stock, movements, authorizations, alerts, unreadNotificationCount, notificationsLoading, notificationError,
-    auditLog, physicalCounts, operationalUsers, loading, error, registerMovement, submitMovement, searchMovements, getMovementDetail, confirmMovement,
+    auditLog, physicalCounts, operationalUsers, loading, error, registerMovement, submitMovement, searchMovements, getMovementDetail, getAuthorizationDetail, confirmMovement,
     resolveAuthorization, searchAuditLog, markAlertRead, refreshNotifications]);
 
   return <OperationsContext.Provider value={value}>{children}</OperationsContext.Provider>;

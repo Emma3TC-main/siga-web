@@ -22,6 +22,8 @@ export interface ResolvedAuthorizationLine {
   line: MovementLine;
   product?: Product;
   unit?: UnitOfMeasure;
+  fromLocation?: Location;
+  toLocation?: Location;
 }
 
 export interface ResolvedAuthorization {
@@ -75,7 +77,9 @@ export function resolveAuthorization(auth: Authorization, sources: Authorization
     lines: auth.lines?.map(line => ({
       line,
       product: products.find(p => p.id === line.productId),
-      unit: units.find(u => u.id === line.unitId),
+      unit: units.find(u => u.id === line.unitId || u.code === line.unitCode || u.code === line.unitId),
+      fromLocation: locations.find(location => location.id === line.fromLocationId),
+      toLocation: locations.find(location => location.id === line.toLocationId),
     })),
   };
 }

@@ -8,6 +8,10 @@ export interface MovementLine {
   productId: string;
   quantity: number;
   unitId: string;
+  /** Código canónico devuelto por el detalle remoto cuando no existe un UUID de unidad en la respuesta. */
+  unitCode?: string;
+  conversionFactor?: number;
+  stockQuantity?: number;
   fromLocationId?: string;
   toLocationId?: string;
   batch?: string;
@@ -17,6 +21,8 @@ export interface MovementLine {
   expiryDate?: string;
   unitCost?: number;
   totalCost?: number;
+  baseUnitCostPen?: number;
+  appliedAvgCostPen?: number;
 }
 
 export interface Movement {

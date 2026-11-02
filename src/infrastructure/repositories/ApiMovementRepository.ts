@@ -45,6 +45,9 @@ interface BackendMovementDetailResponse {
   exchangeRate: number | null;
   exchangeRateDate: string | null;
   exchangeRateSource: string | null;
+  baseUnitCostPen?: number | null;
+  appliedAvgCostPen?: number | null;
+  totalCostPen?: number | null;
 }
 
 interface BackendMovementHistoryItem {
@@ -292,6 +295,9 @@ export class ApiMovementRepository implements MovementRepository {
       productId: d.productId,
       quantity: d.enteredQuantity,
       unitId: d.unitCode,
+      unitCode: d.unitCode,
+      conversionFactor: d.conversionFactor,
+      stockQuantity: d.stockQuantity,
       fromLocationId: d.originLocationId || undefined,
       toLocationId: d.destinationLocationId || undefined,
       batch: d.lotId || undefined,
@@ -299,7 +305,9 @@ export class ApiMovementRepository implements MovementRepository {
       lotSource: d.lotId ? 'canonical' : undefined,
       assetSource: d.assetId ? 'canonical' : undefined,
       unitCost: d.originalUnitCost ?? undefined,
-      totalCost: d.originalUnitCost === null ? undefined : d.enteredQuantity * d.originalUnitCost,
+      totalCost: d.totalCostPen ?? (d.originalUnitCost === null ? undefined : d.enteredQuantity * d.originalUnitCost),
+      baseUnitCostPen: d.baseUnitCostPen ?? undefined,
+      appliedAvgCostPen: d.appliedAvgCostPen ?? undefined,
     }));
 
     return {

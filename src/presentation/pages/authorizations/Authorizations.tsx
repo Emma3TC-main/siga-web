@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../../state/AppContext';
 import { useAuthorizations } from '../../hooks/useAuthorizations';
 import { useMovements } from '../../hooks/useMovements';
@@ -28,7 +28,13 @@ export default function Authorizations() {
   const { state, navigate, showToast } = useApp();
   const { responsibles, currentUser, costCenters } = state;
   const { users } = useUsers();
-  const { authorizations, resolveAuthorization: resolveRequest } = useAuthorizations();
+  const {
+    authorizations,
+    loading: listLoading,
+    error: listError,
+    getAuthorizationDetail,
+    resolveAuthorization: resolveRequest,
+  } = useAuthorizations();
   const { movements, confirmMovement } = useMovements();
   const { products } = useProducts();
   const { locations } = useLocations();
@@ -36,6 +42,9 @@ export default function Authorizations() {
   const [tab, setTab] = useState('pendiente');
   const [selectedAuth, setSelectedAuth] = useState<string | null>(null);
   const [viewAuthId, setViewAuthId] = useState<string | null>(null);
+  const [viewAuthorization, setViewAuthorization] = useState<(typeof authorizations)[number] | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [rejectModal, setRejectModal] = useState(false);
@@ -45,6 +54,32 @@ export default function Authorizations() {
   const filtered = filterAuthorizationsByStatus(authorizations, tab);
   const counts = countAuthorizationsByStatus(authorizations);
   const lookupSources = { products, units, locations, responsibles, users, costCenters, movements };
+
+  useEffect(() => {
+    if (!viewAuthId) {
+      setViewAuthorization(null);
+      setDetailError(null);
+      setDetailLoading(false);
+      return;
+    }
+    let active = true;
+    setViewAuthorization(null);
+    setDetailError(null);
+    setDetailLoading(true);
+    getAuthorizationDetail(viewAuthId)
+      .then(detail => {
+        if (!active) return;
+        if (!detail) throw new Error('La autorización ya no está disponible.');
+        setViewAuthorization(detail);
+      })
+      .catch(error => {
+        if (active) setDetailError(getErrorMessage(error));
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false);
+      });
+    return () => { active = false; };
+  }, [getAuthorizationDetail, viewAuthId]);
 
   async function handleApprove(authId: string) {
     setLoading(true);
@@ -93,8 +128,7 @@ export default function Authorizations() {
   }
 
   // Datos completos para el modal de detalle (solo consulta; no altera el flujo de autorización).
-  const viewAuth = authorizations.find(a => a.id === viewAuthId);
-  const viewResolved = viewAuth ? resolveAuthorization(viewAuth, lookupSources) : undefined;
+  const viewResolved = viewAuthorization ? resolveAuthorization(viewAuthorization, lookupSources) : undefined;
 
   return (
     <div className="flex flex-col h-full">
@@ -118,7 +152,9 @@ export default function Authorizations() {
       </div>
 
       <div className="flex-1 overflow-auto px-6 pb-6 mt-4">
-        {filtered.length === 0 && (
+        {listLoading && <div className="py-8 text-center text-sm text-gray-500">Cargando autorizaciones…</div>}
+        {listError && <div className="mb-4 p-3 rounded-lg border border-red-200 bg-red-50 text-sm text-red-700">No se pudieron cargar las autorizaciones: {getErrorMessage(listError)}</div>}
+        {!listLoading && !listError && filtered.length === 0 && (
           <EmptyState icon={<ShieldIcon size={48} />}
             title={tab === 'pendiente' ? 'No hay autorizaciones pendientes' : tab === 'aprobado' ? 'No hay operaciones autorizadas' : 'No hay autorizaciones rechazadas'}
             description={tab === 'pendiente' ? 'Todas las operaciones sensibles han sido procesadas' : undefined}
@@ -155,6 +191,8 @@ export default function Authorizations() {
         open={!!viewAuthId}
         onClose={() => setViewAuthId(null)}
         resolved={viewResolved}
+        loading={detailLoading}
+        error={detailError}
       />
     </div>
   );

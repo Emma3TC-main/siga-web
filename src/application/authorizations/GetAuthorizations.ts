@@ -7,4 +7,8 @@ export class GetAuthorizations {
   execute(): Promise<Authorization[]> {
     return this.repository.getAll();
   }
+
+  getById(id: string): Promise<Authorization | null> {
+    return this.repository.getById(id);
+  }
 }
